@@ -1,0 +1,66 @@
+
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Nearix PRO</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Icone du site -->
+    <link rel="icon" type="image/png" href="Nearix PRO_ico.PNG" />
+
+    <!-- CSS Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- JS Leaflet -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="titre-header">
+        <h1>Bienvenue sur Nearix PRO</h1>
+        <h2>Votre destination, notre satisfaction !!!</h2>
+      </div>
+    </header>
+
+    <!-- Contenu principal divisé en deux colonnes -->
+    <main class="contenu">
+      <!-- Colonne gauche : recherche + résultats -->
+      <div class="gauche">
+        <section id="recherche">
+          <h2>Recherche par ville, type ou nom</h2>
+          <input type="text" placeholder="Entrez un mot-clé..." />
+          <button id="btnRecherche">Rechercher</button>
+        </section>
+
+        <section id="resultats">
+          <h2>Résultats</h2>
+          <ul></ul>
+        </section>
+      </div>
+
+      <!-- Colonne droite : carte + boutons -->
+      <div class="droite">
+        <section id="carte">
+          <h2>Carte interactive</h2>
+          <!-- Boutons placés en haut de la carte -->
+          <nav>
+            <button id="btnRestaurants">Restaurants</button>
+            <button id="btnHotels">Hôtels</button>
+            <button id="btnFastfoods">Fast-foods</button>
+            <button id="btnRecherche">Rechercher</button>
+          </nav>
+          <div id="map" style="height: 500px"></div>
+        </section>
+      </div>
+    </main>
+
+    <footer>
+      <p>© 2026 Mon App Recommandation</p>
+    </footer>
+
+    <!-- Lien vers ton script -->
+    <script src="script.js"></script>
+  </body>
+</html>
+
