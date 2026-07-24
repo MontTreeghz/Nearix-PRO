@@ -1,0 +1,99 @@
+/* Style global */
+body {
+  margin: 0;
+  font-family: "Garamond", "Times New Roman", serif;
+  background-color: #fdf6e3; /* effet parchemin clair */
+}
+
+/* Header médiéval */
+header {
+  background-color: #000;
+  color: #ffd700;
+  padding: 20px 0 10px 0;
+  border-bottom: 3px solid #ffd700;
+  text-align: center;
+}
+
+/* Titres du header */
+header h1 {
+  font-size: 2.5em;
+  margin: 0;
+  font-family: "UnifrakturCook", "Garamond", serif;
+  letter-spacing: 2px;
+}
+
+header h2 {
+  font-size: 1.2em;
+  margin-top: 5px;
+  font-style: italic;
+}
+
+/* Contenu principal */
+.contenu {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+/* Colonne gauche : carte */
+.droite {
+  flex: 1;
+  min-width: 400px;
+  margin: 10px;
+}
+
+/* Colonne droite : résultats */
+.gauche {
+  flex: 1;
+  min-width: 400px;
+  margin: 10px;
+}
+
+/* Barre de boutons au-dessus de la carte */
+.carte-nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+/* Boutons chevaleresques avec dégradé doré */
+.carte-nav button {
+  background: linear-gradient(145deg, #ffd700, #ffcc33);
+  border: 2px solid #b8860b;
+  color: #000;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-weight: bold;
+  font-family: "Garamond", serif;
+  border-radius: 8px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  transition: 0.3s;
+}
+
+.carte-nav button:hover,
+.carte-nav button.active {
+  background: linear-gradient(145deg, #ffcc33, #ffd700);
+  color: #000;
+  transform: scale(1.05);
+}
+
+/* Carte */
+#map {
+  height: 500px;
+  border: 2px solid #ffd700;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Footer */
+footer {
+  background-color: #000;
+  color: #ffd700;
+  text-align: center;
+  padding: 10px;
+  border-top: 3px solid #ffd700;
+}
