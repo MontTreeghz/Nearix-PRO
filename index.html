@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Nearix PRO 11 — Lieux & services du Burkina Faso</title>
+  <title>Nearix PRO 12 — Lieux & services du Burkina Faso</title>
   <meta name="description" content="Nearix PRO : hôtels, restaurants, stations, banques, écoles, télécoms, sites touristiques du Burkina Faso (Ouaga, Bobo, Banfora…). Recherche par budget, position et itinéraire optimal." />
   <meta name="theme-color" content="#0a0a0a" />
   <meta name="color-scheme" content="dark light" />
@@ -128,8 +128,11 @@
        LAYOUT PRINCIPAL : panneau latéral + carte
        ============================================================ -->
   <div class="app" id="app">
+    <!-- Backdrop mobile : fermer le panneau en tapant la carte -->
+    <button type="button" id="panelBackdrop" class="panel-backdrop" aria-label="Fermer le panneau" hidden></button>
+
     <!-- ---------- PANNEAU LATÉRAL (gauche) ---------- -->
-    <aside class="panel" id="panel" aria-label="Recherche et résultats">
+    <aside class="panel collapsed" id="panel" aria-label="Recherche et résultats">
       <!-- Onglets -->
       <nav class="tabs" role="tablist">
         <button type="button" class="tab actif" data-tab="recherche" role="tab" aria-selected="true">
@@ -138,6 +141,10 @@
         <button type="button" class="tab" data-tab="itineraire" role="tab" aria-selected="false">
           Itinéraire
           <span class="badge" id="badgeItineraire" hidden>0</span>
+        </button>
+        <button type="button" class="tab" data-tab="assistant" role="tab" aria-selected="false">
+          IA
+          <span class="badge badge-ai" aria-hidden="true">✦</span>
         </button>
       </nav>
 
@@ -218,6 +225,41 @@
 
         <p id="resumeItineraire" class="resume-itineraire" role="status"></p>
       </div>
+
+      <!-- Contenu onglet Assistant IA -->
+      <div class="tab-panel" id="tab-assistant" role="tabpanel" hidden>
+        <div class="ai-intro">
+          <div class="ai-avatar" aria-hidden="true">✦</div>
+          <div>
+            <strong>Assistant Nearix</strong>
+            <p>Parlez-moi en français : hôtels, restos, budget, ville, itinéraire…</p>
+          </div>
+        </div>
+
+        <div class="ai-suggestions" id="aiSuggestions" role="group" aria-label="Suggestions">
+          <button type="button" class="ai-chip" data-q="Hôtels pas chers à Ouagadougou">🏨 Hôtels pas chers Ouaga</button>
+          <button type="button" class="ai-chip" data-q="Meilleurs restaurants près de moi">🍽️ Restos près de moi</button>
+          <button type="button" class="ai-chip" data-q="Fast-foods à Bobo sous 4000 FCFA">🍔 Fast-foods Bobo</button>
+          <button type="button" class="ai-chip" data-q="Sites touristiques à Banfora">🏛️ Tourisme Banfora</button>
+          <button type="button" class="ai-chip" data-q="Stations-service à Ouagadougou">⛽ Stations Ouaga</button>
+          <button type="button" class="ai-chip" data-q="Propose-moi un itinéraire week-end">🗺️ Itinéraire week-end</button>
+        </div>
+
+        <div class="ai-chat" id="aiChat" role="log" aria-live="polite" aria-label="Conversation avec l'assistant"></div>
+
+        <form class="ai-form" id="aiForm" autocomplete="off">
+          <input
+            type="text"
+            id="aiInput"
+            placeholder="Ex. hôtel 3 étoiles à Bobo sous 25000…"
+            aria-label="Message à l'assistant IA"
+            maxlength="280"
+          />
+          <button type="submit" id="btnAiSend" class="btn-primary ai-send" aria-label="Envoyer">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+          </button>
+        </form>
+      </div>
     </aside>
 
     <!-- ---------- CARTE (plein espace restant) ---------- -->
@@ -250,9 +292,9 @@
 
   <!-- Pied de page minimal -->
   <footer class="footer">
-    <span>© 2026 Nearix PRO 11</span>
+    <span>© 2026 Nearix PRO 12.0</span>
     <span class="footer-sep">·</span>
-    <span>OSM · multi-services BF</span>
+    <span>OSM · multi-services BF · IA</span>
   </footer>
 
   <script src="script.js"></script>
