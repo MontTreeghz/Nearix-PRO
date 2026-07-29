@@ -1,262 +1,1157 @@
-// --- Sélection des éléments HTML ---
-const inputVille = document.querySelector("#recherche input");
-const boutonRecherche = document.querySelector("#btnRecherche");
-const boutonRestaurants = document.querySelector("#btnRestaurants");
-const boutonHotels = document.querySelector("#btnHotels");
-const boutonFastfoods = document.querySelector("#btnFastfoods");
-const listeResultats = document.querySelector("#resultats ul");
+/* ============================================================
+   NEARIX PRO — Design system moderne & luxe
+   Inspiré Google Maps + esthétique premium (or / noir / ivoire)
+   ============================================================ */
 
-// --- Données fictives avec coordonnées ---
-const lieux = [
-  // --- Hôtels Ouagadougou ---
-  {
-    type: "hotel",
-    nom: "Bravia Hotel Ouagadougou",
-    ville: "Ouagadougou",
-    coords: [12.3656, -1.5126],
-  },
-  {
-    type: "hotel",
-    nom: "Sopatel Silmandé",
-    ville: "Ouagadougou",
-    coords: [12.392, -1.531],
-  },
-  {
-    type: "hotel",
-    nom: "Sonia Hotel",
-    ville: "Ouagadougou",
-    coords: [12.3605, -1.5102],
-  },
-  {
-    type: "hotel",
-    nom: "Hotel Kavana",
-    ville: "Ouagadougou",
-    coords: [12.3689, -1.512],
-  },
-  {
-    type: "hotel",
-    nom: "Villa Yiri Suma",
-    ville: "Ouagadougou",
-    coords: [12.3642, -1.5148],
-  },
-  {
-    type: "hotel",
-    nom: "Pacific Hotel",
-    ville: "Ouagadougou",
-    coords: [12.369, -1.518],
-  },
-  {
-    type: "hotel",
-    nom: "Palm Beach Hotel",
-    ville: "Ouagadougou",
-    coords: [12.368, -1.517],
-  },
-  {
-    type: "hotel",
-    nom: "Azalaï Hôtel Ouagadougou",
-    ville: "Ouagadougou",
-    coords: [12.356, -1.512],
-  },
-  {
-    type: "hotel",
-    nom: "Lancaster Ouaga 2000",
-    ville: "Ouagadougou",
-    coords: [12.31, -1.48],
-  },
+/* ---------- Tokens (CSS variables) ---------- */
+:root {
+  /* Couleurs de base (thème sombre par défaut — plus luxe) */
+  --bg: #0c0c0c;
+  --bg-elevated: #141414;
+  --bg-panel: #111111;
+  --bg-card: #1a1a1a;
+  --bg-hover: #222222;
+  --border: #2a2a2a;
+  --border-strong: #3a3a3a;
+  --text: #f5f5f0;
+  --text-muted: #a8a89c;
+  --text-faint: #6b6b60;
+  --accent: #d4af37;          /* or classique */
+  --accent-soft: rgba(212, 175, 55, 0.15);
+  --accent-hover: #e8c547;
+  --danger: #e85a5a;
+  --success: #4caf7a;
+  --info: #5b9bd5;
+  --user-marker: #4da6ff;
 
-  // --- Restaurants Ouagadougou ---
-  {
-    type: "restaurant",
-    nom: "Le Verdoyant",
-    ville: "Ouagadougou",
-    coords: [12.365, -1.515],
-  },
-  {
-    type: "restaurant",
-    nom: "La Perle",
-    ville: "Ouagadougou",
-    coords: [12.366, -1.516],
-  },
-  {
-    type: "restaurant",
-    nom: "Le Gondwana",
-    ville: "Ouagadougou",
-    coords: [12.367, -1.517],
-  },
-  {
-    type: "restaurant",
-    nom: "La Dolce Vita",
-    ville: "Ouagadougou",
-    coords: [12.369, -1.519],
-  },
-  {
-    type: "restaurant",
-    nom: "Le Nomade",
-    ville: "Ouagadougou",
-    coords: [12.37, -1.52],
-  },
-  {
-    type: "restaurant",
-    nom: "Le Petit Bruxelles",
-    ville: "Ouagadougou",
-    coords: [12.371, -1.521],
-  },
-  {
-    type: "restaurant",
-    nom: "Festival des Saveurs",
-    ville: "Ouagadougou",
-    coords: [12.375, -1.525],
-  },
-  {
-    type: "restaurant",
-    nom: "Savane Grill",
-    ville: "Ouagadougou",
-    coords: [12.38, -1.53],
-  },
-  {
-    type: "restaurant",
-    nom: "Le Pavé",
-    ville: "Ouagadougou",
-    coords: [12.382, -1.532],
-  },
-  {
-    type: "restaurant",
-    nom: "Yiri Suma",
-    ville: "Ouagadougou",
-    coords: [12.384, -1.534],
-  },
+  /* Typo */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
 
-  // --- Fast-foods Ouagadougou ---
-  {
-    type: "fastfood",
-    nom: "KFC Ouaga",
-    ville: "Ouagadougou",
-    coords: [12.365, -1.514],
-  },
-  {
-    type: "fastfood",
-    nom: "Burger King Ouaga",
-    ville: "Ouagadougou",
-    coords: [12.366, -1.515],
-  },
-  {
-    type: "fastfood",
-    nom: "Pizza Hut Ouaga",
-    ville: "Ouagadougou",
-    coords: [12.367, -1.516],
-  },
-  {
-    type: "fastfood",
-    nom: "Chicken Express",
-    ville: "Ouagadougou",
-    coords: [12.368, -1.517],
-  },
-  {
-    type: "fastfood",
-    nom: "Ouaga Burger",
-    ville: "Ouagadougou",
-    coords: [12.37, -1.519],
-  },
-  {
-    type: "fastfood",
-    nom: "Tacos Faso",
-    ville: "Ouagadougou",
-    coords: [12.374, -1.523],
-  },
-  {
-    type: "fastfood",
-    nom: "Snack Mogho",
-    ville: "Ouagadougou",
-    coords: [12.382, -1.531],
-  },
-  {
-    type: "fastfood",
-    nom: "Ouaga Tacos",
-    ville: "Ouagadougou",
-    coords: [12.384, -1.533],
-  },
+  /* Rayons & ombres */
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.3);
 
-  // --- Exemple hors Ouaga ---
-  {
-    type: "hotel",
-    nom: "Hotel Faso",
-    ville: "Bobo-Dioulasso",
-    coords: [11.1771, -4.2979],
-  },
-  {
-    type: "restaurant",
-    nom: "Chez Mamadou",
-    ville: "Bobo-Dioulasso",
-    coords: [11.177, -4.297],
-  },
-];
+  /* Transitions fluides */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration: 0.22s;
 
-// --- Fonction pour afficher des résultats ---
-function afficherResultats(resultats) {
-  listeResultats.innerHTML = "";
-  if (resultats.length === 0) {
-    listeResultats.innerHTML = "<li>Aucun résultat trouvé</li>";
-  } else {
-    resultats.forEach((lieu) => {
-      const li = document.createElement("li");
-      li.textContent = `${lieu.type.toUpperCase()} : ${lieu.nom} - ${lieu.ville}`;
-      listeResultats.appendChild(li);
-    });
+  /* Layout */
+  --topbar-h: 64px;
+  --panel-w: 380px;
+  --footer-h: 36px;
+}
+
+/* Thème clair (activé via .theme-light sur <html>) */
+html.theme-light {
+  --bg: #f7f4ec;
+  --bg-elevated: #ffffff;
+  --bg-panel: #fffcf5;
+  --bg-card: #ffffff;
+  --bg-hover: #f5f0e4;
+  --border: #e8e0d0;
+  --border-strong: #d4c9b0;
+  --text: #1a1a14;
+  --text-muted: #5c5c50;
+  --text-faint: #8a8a7a;
+  --accent: #b8960c;
+  --accent-soft: rgba(184, 150, 12, 0.12);
+  --accent-hover: #9a7d0a;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ---------- Reset & base ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  overflow: hidden; /* app plein écran, scroll uniquement dans le panneau */
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  display: flex;
+  flex-direction: column;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---------- Topbar ---------- */
+.topbar {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  z-index: 1000;
+  position: relative;
+}
+
+.topbar-inner {
+  height: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  transition: opacity var(--duration) var(--ease);
+}
+.brand:hover {
+  opacity: 0.85;
+}
+
+.brand-mark {
+  color: var(--accent);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.brand-text {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.brand-pro {
+  color: var(--accent);
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+/* Barre de recherche centrale */
+.search-shell {
+  flex: 1;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 6px 0 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-soft);
+  transition: border-color var(--duration) var(--ease), box-shadow var(--duration) var(--ease);
+}
+.search-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.search-icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+#searchInput {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+  padding: 0;
+}
+#searchInput::placeholder {
+  color: var(--text-faint);
+}
+
+.btn-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+.btn-clear:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.btn-search {
+  height: 34px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0a0a0a;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: background var(--duration) var(--ease), transform 0.15s var(--ease);
+}
+.btn-search:hover {
+  background: var(--accent-hover);
+}
+.btn-search:active {
+  transform: scale(0.97);
+}
+
+/* Actions topbar */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.btn-icon-only {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+.btn-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.only-mobile {
+  display: none;
+}
+
+/* ---------- App layout ---------- */
+.app {
+  flex: 1;
+  display: flex;
+  min-height: 0; /* crucial pour le scroll interne */
+  position: relative;
+}
+
+/* ---------- Panneau latéral ---------- */
+.panel {
+  width: var(--panel-w);
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform var(--duration) var(--ease), width var(--duration) var(--ease);
+  z-index: 20;
+}
+
+/* Onglets */
+.tabs {
+  display: flex;
+  padding: 12px 12px 0;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tab {
+  flex: 1;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  position: relative;
+  transition: color var(--duration) var(--ease), background var(--duration) var(--ease);
+}
+.tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.tab.actif {
+  color: var(--accent);
+  background: var(--bg-card);
+}
+.tab.actif::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0a0a0a;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Contenu des onglets */
+.tab-panel {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px;
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.tab-panel.actif {
+  display: flex;
+}
+.tab-panel::-webkit-scrollbar {
+  width: 6px;
+}
+.tab-panel::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+/* Carte filtres (details) */
+.filters-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.filters-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.filters-card summary::-webkit-details-marker {
+  display: none;
+}
+.filters-card summary .chevron {
+  transition: transform var(--duration) var(--ease);
+  color: var(--text-faint);
+}
+.filters-card[open] summary .chevron {
+  transform: rotate(180deg);
+}
+
+.filters-body {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-row label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.field-row input,
+.field-row select {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--duration) var(--ease);
+}
+.field-row input:focus,
+.field-row select:focus {
+  border-color: var(--accent);
+}
+
+/* Chips type */
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.chip {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all var(--duration) var(--ease);
+}
+.chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.chip.actif {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* État chargement / erreur */
+.etat-chargement {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  display: none;
+}
+.etat-chargement:not(:empty) {
+  display: block;
+}
+.etat-chargement.etat-info {
+  background: rgba(91, 155, 213, 0.12);
+  color: var(--info);
+  border: 1px solid rgba(91, 155, 213, 0.25);
+}
+.etat-chargement.etat-erreur {
+  background: rgba(232, 90, 90, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(232, 90, 90, 0.25);
+}
+
+/* Résultats */
+.results-section {
+  flex: 1;
+  min-height: 0;
+}
+
+.results-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.results-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.results-count {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+}
+
+.results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease), transform 0.15s var(--ease);
+  cursor: pointer;
+}
+.result-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+.result-item:active {
+  transform: scale(0.99);
+}
+
+.result-type {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.result-body {
+  flex: 1;
+  min-width: 0;
+}
+.result-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.result-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.result-meta .sep {
+  color: var(--text-faint);
+}
+
+.btn-add {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  transition: all var(--duration) var(--ease);
+}
+.btn-add:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a0a0a;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+}
+
+/* ---------- Itinéraire ---------- */
+.itineraire-intro {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.itineraire-intro p {
+  margin: 0;
+}
+
+.itineraire-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.itineraire-vide {
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--text-faint);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.item-itineraire {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.numero-etape {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #0a0a0a;
+  font-weight: 700;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nom-etape {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions-etape {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.actions-etape button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: background var(--duration) var(--ease), color var(--duration) var(--ease);
+}
+.actions-etape button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.itineraire-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #0a0a0a;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background var(--duration) var(--ease), transform 0.15s var(--ease);
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 500;
+  transition: all var(--duration) var(--ease);
+}
+.btn-secondary:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.resume-itineraire {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
+.resume-itineraire:empty {
+  display: none;
+}
+.resume-itineraire.etat-erreur {
+  color: var(--danger);
+  background: rgba(232, 90, 90, 0.1);
+  border-color: rgba(232, 90, 90, 0.25);
+}
+
+/* ---------- Carte ---------- */
+.map-wrap {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  background: #1a1a1a;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+/* FABs flottants */
+.map-controls {
+  position: absolute;
+  right: 14px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 500;
+}
+
+.map-fab {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  transition: background var(--duration) var(--ease), transform 0.15s var(--ease);
+}
+.map-fab:hover {
+  background: var(--bg-hover);
+}
+.map-fab:active {
+  transform: scale(0.94);
+}
+
+.map-legend {
+  position: absolute;
+  left: 14px;
+  bottom: 24px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  box-shadow: var(--shadow-soft);
+  pointer-events: none;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.legend-dot.user {
+  background: var(--user-marker);
+  box-shadow: 0 0 0 3px rgba(77, 166, 255, 0.3);
+}
+.legend-dot.place {
+  background: var(--accent);
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+}
+.toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.toast.success {
+  border-color: rgba(76, 175, 122, 0.4);
+}
+.toast.error {
+  border-color: rgba(232, 90, 90, 0.4);
+}
+
+/* ---------- Footer ---------- */
+.footer {
+  height: var(--footer-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-faint);
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+.footer-sep {
+  opacity: 0.5;
+}
+
+/* ---------- Leaflet overrides (cohérents avec le thème) ---------- */
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: #ccc !important;
+  border-radius: 4px 0 0 0 !important;
+}
+.leaflet-control-attribution a {
+  color: #ddd !important;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 12px !important;
+  box-shadow: var(--shadow) !important;
+  padding: 0 !important;
+  background: var(--bg-elevated) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border);
+}
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 0.875rem !important;
+  line-height: 1.4 !important;
+}
+.leaflet-popup-tip {
+  background: var(--bg-elevated) !important;
+}
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--text-muted) !important;
+}
+
+/* Masquer le panneau d'instructions LRM par défaut (déjà show:false) */
+.leaflet-routing-container {
+  display: none !important;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 860px) {
+  :root {
+    --panel-w: 100%;
+  }
+
+  .only-mobile {
+    display: flex;
+  }
+
+  .btn-label {
+    display: none;
+  }
+
+  .panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(100%, 400px);
+    max-width: 100%;
+    transform: translateX(0);
+    box-shadow: var(--shadow);
+  }
+  .panel.collapsed {
+    transform: translateX(-105%);
+  }
+
+  .map-controls {
+    right: 12px;
+    bottom: 16px;
+  }
+  .map-legend {
+    left: 12px;
+    bottom: 16px;
+  }
+
+  .search-shell {
+    max-width: none;
+  }
+  .btn-search {
+    padding: 0 12px;
+    font-size: 0.8rem;
   }
 }
 
-// --- Initialiser la carte ---
-const map = L.map("map").setView([12.3714, -1.5197], 13);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap contributors",
-}).addTo(map);
-
-// --- Fonction pour afficher les marqueurs ---
-let markers = [];
-function afficherMarqueurs(resultats) {
-  markers.forEach((marker) => map.removeLayer(marker));
-  markers = [];
-
-  resultats.forEach((lieu) => {
-    const marker = L.marker(lieu.coords)
-      .addTo(map)
-      .bindPopup(`<b>${lieu.nom}</b><br>${lieu.type} - ${lieu.ville}`);
-    markers.push(marker);
-  });
-
-  if (resultats.length > 0) {
-    const group = L.featureGroup(markers);
-    map.fitBounds(group.getBounds());
+@media (max-width: 480px) {
+  .brand-text {
+    font-size: 1.1rem;
+  }
+  .topbar-inner {
+    padding: 0 10px;
+    gap: 8px;
+  }
+  .search-box {
+    height: 40px;
   }
 }
 
-// --- Fonction de recherche par nom, ville ou type ---
-function rechercherLieu() {
-  const recherche = inputVille.value.toLowerCase().trim();
-  const resultats = lieux.filter(
-    (lieu) =>
-      lieu.nom.toLowerCase().includes(recherche) ||
-      lieu.ville.toLowerCase().includes(recherche) ||
-      lieu.type.toLowerCase().includes(recherche),
-  );
-  afficherResultats(resultats);
-  afficherMarqueurs(resultats);
+/* Réduction de motion pour accessibilité */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-// --- Fonction de filtrage par type ---
-function filtrerParType(type) {
-  const resultats = lieux.filter((lieu) => lieu.type === type);
-  afficherResultats(resultats);
-  afficherMarqueurs(resultats);
+/* ---------- Avis Google / notes ---------- */
+.result-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 0 2px;
+  font-size: 0.8rem;
 }
 
-// --- Événements ---
-inputVille.addEventListener("input", rechercherLieu);
-boutonRecherche.addEventListener("click", rechercherLieu);
-boutonRestaurants.addEventListener("click", () => filtrerParType("restaurant"));
-boutonHotels.addEventListener("click", () => filtrerParType("hotel"));
-boutonFastfoods.addEventListener("click", () => filtrerParType("fastfood"));
+.stars {
+  color: #f5b942;
+  letter-spacing: 0.5px;
+  font-size: 0.95rem;
+  line-height: 1;
+}
 
-// --- Afficher tous les lieux au départ ---
-afficherResultats(lieux);
-afficherMarqueurs(lieux);
+.note-num {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.avis-count {
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
+.btn-google-avis {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1a73e8;
+  background: rgba(26, 115, 232, 0.1);
+  border: 1px solid rgba(26, 115, 232, 0.25);
+  transition: background var(--duration) var(--ease), border-color var(--duration) var(--ease);
+  text-decoration: none;
+  width: fit-content;
+}
+.btn-google-avis:hover {
+  background: rgba(26, 115, 232, 0.18);
+  border-color: rgba(26, 115, 232, 0.45);
+}
+
+html.theme-light .btn-google-avis {
+  color: #1557b0;
+  background: rgba(26, 115, 232, 0.08);
+}
+
+/* Popup Leaflet enrichi */
+.popup-lieu {
+  min-width: 180px;
+}
+.popup-rating {
+  margin: 4px 0 6px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.popup-google {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1a73e8 !important;
+  text-decoration: none;
+}
+.popup-google:hover {
+  text-decoration: underline;
+}
+
+
+/* Logo */
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* Onboarding */
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(12px);
+  padding: 20px;
+}
+.onboarding[hidden] { display: none !important; }
+.onboarding-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.onboarding-progress {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.ob-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: all 0.25s ease;
+}
+.ob-dot.actif {
+  background: var(--accent);
+  width: 22px;
+  border-radius: 999px;
+}
+.ob-dot.done { background: var(--accent); opacity: 0.5; }
+.onboarding-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin-bottom: 12px;
+}
+.ob-icon { font-size: 2.4rem; margin-bottom: 12px; }
+.onboarding-card h1, .onboarding-card h2 {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+.onboarding-card h1 { font-size: 1.5rem; }
+.onboarding-card h2 { font-size: 1.3rem; }
+.onboarding-tagline {
+  margin: 0 0 14px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.ob-desc {
+  margin: 0 0 16px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+  text-align: left;
+}
+.ob-desc strong { color: var(--text); }
+.ob-hint { margin: 10px 0 0; font-size: 0.78rem; color: var(--text-faint); }
+.ob-slide[hidden] { display: none; }
+.onboarding-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  gap: 12px;
+}
+.ob-nav-right { display: flex; gap: 8px; margin-left: auto; }
+.btn-ob-skip {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-faint);
+  padding: 8px 4px;
+}
+.btn-ob-skip:hover { color: var(--text-muted); }
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  font-size: 0.8em;
+  font-family: inherit;
+}
+
+/* v11 chips denser */
+.type-chips .chip {
+  font-size: 0.75rem;
+  padding: 0 10px;
+  height: 30px;
+}
