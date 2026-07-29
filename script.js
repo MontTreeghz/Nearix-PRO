@@ -1,7 +1,7 @@
 /**
  * ============================================================
  * NEARIX PRO — Script principal
- * Version 11.0 · multi-services · routage 2-opt · luxe
+ * Version 12.0 · multi-services · routage 2-opt · mobile-first · luxe
  * ============================================================
  *
  * Architecture :
@@ -51,6 +51,7 @@ const tabs = document.querySelectorAll(".tab");
 const tabPanels = {
   recherche: document.querySelector("#tab-recherche"),
   itineraire: document.querySelector("#tab-itineraire"),
+  assistant: document.querySelector("#tab-assistant"),
 };
 
 // ============================================================
@@ -1558,7 +1559,7 @@ function afficherResultats(resultats) {
       ajouterAItineraire(lieu);
     });
 
-    // Clic sur la carte → centrer
+    // Clic sur un résultat → centrer (+ fermer panneau mobile pour voir la carte)
     li.addEventListener("click", () => {
       map.setView(lieu.coords, 16);
       const m = markers.find((mk) => {
@@ -1569,6 +1570,9 @@ function afficherResultats(resultats) {
         );
       });
       if (m) m.openPopup();
+      if (typeof isMobileLayout === "function" && isMobileLayout() && typeof setPanelOpen === "function") {
+        setPanelOpen(false);
+      }
     });
 
     li.appendChild(typeEl);
@@ -2200,9 +2204,72 @@ tabs.forEach((tab) => {
 // Thème
 boutonTheme?.addEventListener("click", basculerTheme);
 
-// Panneau mobile
-boutonTogglePanel?.addEventListener("click", () => {
-  panel.classList.toggle("collapsed");
+// Panneau mobile / tablette
+const panelBackdrop = document.querySelector("#panelBackdrop");
+const MOBILE_MQ = window.matchMedia("(max-width: 860px)");
+
+function isMobileLayout() {
+  return MOBILE_MQ.matches;
+}
+
+function setPanelOpen(open) {
+  if (!panel) return;
+  if (open) {
+    panel.classList.remove("collapsed");
+  } else {
+    panel.classList.add("collapsed");
+  }
+  if (panelBackdrop) {
+    panelBackdrop.classList.toggle("visible", open && isMobileLayout());
+    panelBackdrop.hidden = !(open && isMobileLayout());
+  }
+  // Leaflet doit recalculer sa taille après le slide du panneau
+  setTimeout(() => {
+    if (typeof map !== "undefined" && map) map.invalidateSize({ animate: false });
+  }, 300);
+}
+
+function togglePanel() {
+  if (!panel) return;
+  const willOpen = panel.classList.contains("collapsed");
+  setPanelOpen(willOpen);
+}
+
+boutonTogglePanel?.addEventListener("click", togglePanel);
+panelBackdrop?.addEventListener("click", () => setPanelOpen(false));
+
+// Au démarrage : mobile → panneau fermé (carte visible) ; desktop → ouvert
+if (isMobileLayout()) {
+  setPanelOpen(false);
+} else {
+  setPanelOpen(true); // retire .collapsed pour le layout desktop
+}
+
+// Resize / rotation : recalcul carte + état panneau
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (typeof map !== "undefined" && map) map.invalidateSize({ animate: false });
+    if (!isMobileLayout()) {
+      panel?.classList.remove("collapsed");
+      if (panelBackdrop) {
+        panelBackdrop.classList.remove("visible");
+        panelBackdrop.hidden = true;
+      }
+    } else if (panel && !panel.classList.contains("collapsed")) {
+      if (panelBackdrop) {
+        panelBackdrop.classList.add("visible");
+        panelBackdrop.hidden = false;
+      }
+    }
+  }, 150);
+});
+
+window.addEventListener("orientationchange", () => {
+  setTimeout(() => {
+    if (typeof map !== "undefined" && map) map.invalidateSize({ animate: false });
+  }, 350);
 });
 
 // Raccourci clavier : / pour focus recherche
@@ -2313,4 +2380,526 @@ document.addEventListener("keydown", (e) => {
       }
     });
   }
+})();
+
+// ============================================================
+// 12. ASSISTANT IA — compréhension langage naturel (FR)
+//     100 % local : pas de clé API, fonctionne hors-ligne
+// ============================================================
+(function initAssistantIA() {
+  const chatEl = document.querySelector("#aiChat");
+  const formEl = document.querySelector("#aiForm");
+  const inputEl = document.querySelector("#aiInput");
+  const suggestionsEl = document.querySelector("#aiSuggestions");
+  if (!chatEl || !formEl || !inputEl) return;
+
+  const VILLES = [
+    { keys: ["ouaga", "ouagadougou"], nom: "Ouagadougou" },
+    { keys: ["bobo", "bobo-dioulasso", "bobodioulasso"], nom: "Bobo-Dioulasso" },
+    { keys: ["banfora"], nom: "Banfora" },
+    { keys: ["koudougou"], nom: "Koudougou" },
+    { keys: ["ouahigouya"], nom: "Ouahigouya" },
+    { keys: ["kaya"], nom: "Kaya" },
+    { keys: ["fada", "fada n'gourma", "fada ngourma"], nom: "Fada N'Gourma" },
+    { keys: ["dédougou", "dedougou"], nom: "Dédougou" },
+    { keys: ["tenkodogo"], nom: "Tenkodogo" },
+    { keys: ["houndé", "hounde"], nom: "Houndé" },
+  ];
+
+  const TYPES = [
+    { keys: ["hôtel", "hotel", "hotels", "hôtels", "hébergement", "loger", "nuitée", "nuitee"], type: "hotel", label: "hôtels" },
+    { keys: ["restaurant", "restaurants", "resto", "restos", "manger", "dîner", "diner", "déjeuner", "dejeuner"], type: "restaurant", label: "restaurants" },
+    { keys: ["fast-food", "fastfood", "fast food", "burger", "chicken", "snack", "pizza"], type: "fastfood", label: "fast-foods" },
+    { keys: ["station", "stations", "essence", "carburant", "fuel", "total", "oryx"], type: "station", label: "stations-service" },
+    { keys: ["banque", "banques", "atm", "guichet", "argent"], type: "banque", label: "banques" },
+    { keys: ["école", "ecole", "écoles", "ecoles", "université", "universite", "collège", "college", "lycée", "lycee"], type: "ecole", label: "écoles" },
+    { keys: ["télécom", "telecom", "orange", "moov", "telecel", "sim", "réseau", "reseau"], type: "telecom", label: "agences télécom" },
+    { keys: ["tourisme", "touristique", "cascade", "cascades", "musée", "musee", "parc", "site", "attraction", "loropéni", "loropeni", "nazinga", "fabédougou", "fabedougou"], type: "tourisme", label: "sites touristiques" },
+  ];
+
+  let lastResults = [];
+  let welcomeShown = false;
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function addMsg(html, role) {
+    const div = document.createElement("div");
+    div.className = `ai-msg ${role}`;
+    div.innerHTML = html;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return div;
+  }
+
+  function showTyping() {
+    return addMsg(
+      `<span class="ai-typing" aria-label="Réflexion…"><span></span><span></span><span></span></span>`,
+      "bot",
+    );
+  }
+
+  function parseIntent(raw) {
+    const q = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const intent = {
+      type: null,
+      typeLabel: null,
+      ville: null,
+      budgetMax: null,
+      budgetMin: null,
+      tri: null,
+      nearMe: false,
+      best: false,
+      itineraire: false,
+      help: false,
+      clear: false,
+      motCle: "",
+    };
+
+    // Aide
+    if (/\b(aide|help|comment|quoi faire|que faire)\b/.test(q)) intent.help = true;
+
+    // Vider / reset
+    if (/\b(vide|vider|reset|efface|recommence)\b/.test(q) && /\b(filtre|recherche|tout)\b/.test(q)) {
+      intent.clear = true;
+    }
+
+    // Proximité
+    if (/\b(pres de moi|proche|autour de moi|a cote|à côté|ma position|geoloc)\b/.test(q)) {
+      intent.nearMe = true;
+      intent.tri = "proximite";
+    }
+
+    // Meilleurs / notes
+    if (/\b(meilleur|meilleurs|top|bien note|mieux note|etoile|étoiles)\b/.test(q)) {
+      intent.best = true;
+      intent.tri = "note";
+    }
+
+    // Itinéraire
+    if (/\b(itineraire|itinéraire|trajet|parcours|road trip|week-?end|circuit)\b/.test(q)) {
+      intent.itineraire = true;
+    }
+
+    // Types
+    for (const t of TYPES) {
+      if (t.keys.some((k) => q.includes(k.normalize("NFD").replace(/[\u0300-\u036f]/g, "")))) {
+        intent.type = t.type;
+        intent.typeLabel = t.label;
+        break;
+      }
+    }
+
+    // Villes
+    for (const v of VILLES) {
+      if (v.keys.some((k) => q.includes(k))) {
+        intent.ville = v.nom;
+        break;
+      }
+    }
+
+    // Budget : "sous 10000", "moins de 25 000", "budget 15000", "pas cher", "luxe"
+    const mBudget =
+      q.match(/(?:sous|moins de|max(?:imum)?|budget(?: max)?|jusqu[' ]a|jusqua|inférieur a|inferieur a)\s*(\d[\d\s.]*)/i) ||
+      q.match(/(\d[\d\s.]*)\s*(?:fcfa|f cfa|francs?)/i);
+    if (mBudget) {
+      const n = parseInt(String(mBudget[1]).replace(/[\s.]/g, ""), 10);
+      if (!isNaN(n) && n > 0) intent.budgetMax = n;
+    }
+    if (/\b(pas cher|bon marche|bon marché|economique|économique|low cost|abordable)\b/.test(q)) {
+      if (!intent.budgetMax) {
+        if (intent.type === "hotel") intent.budgetMax = 20000;
+        else if (intent.type === "restaurant") intent.budgetMax = 6000;
+        else if (intent.type === "fastfood") intent.budgetMax = 3500;
+        else intent.budgetMax = 15000;
+      }
+      intent.tri = intent.tri || "budgetCroissant";
+    }
+    if (/\b(luxe|luxueux|premium|haut de gamme|cher)\b/.test(q)) {
+      intent.budgetMin = intent.type === "hotel" ? 40000 : 10000;
+      intent.tri = intent.tri || "budgetDecroissant";
+    }
+
+    // Mot-clé résiduel (noms propres type "Belle Chicken")
+    const stop = new Set([
+      "un", "une", "des", "le", "la", "les", "de", "du", "des", "au", "aux", "a", "à",
+      "pour", "avec", "dans", "sur", "moi", "mon", "ma", "mes", "je", "trouve", "cherche",
+      "montre", "donne", "propose", "veux", "voudrais", "besoin", "ou", "où", "est", "sont",
+      "fcfa", "franc", "francs", "budget", "max", "min", "sous", "moins", "pas", "cher",
+      "meilleur", "meilleurs", "top", "pres", "proche", "autour", "itineraire", "trajet",
+      "hotel", "hotels", "restaurant", "resto", "restos", "fast", "food", "station",
+      "banque", "ecole", "telecom", "tourisme", "site", "sites",
+    ]);
+    const tokens = q
+      .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+      .split(/\s+/)
+      .filter((t) => t.length > 2 && !stop.has(t));
+    // garder tokens qui ne sont pas déjà captés comme type/ville
+    intent.motCle = tokens.slice(0, 3).join(" ");
+
+    return intent;
+  }
+
+  function filtrerLieux(intent) {
+    let list = [...lieux];
+
+    if (intent.type) {
+      list = list.filter((l) => l.type === intent.type);
+    }
+    if (intent.ville) {
+      const v = intent.ville.toLowerCase();
+      list = list.filter((l) => (l.ville || "").toLowerCase().includes(v.split("-")[0].slice(0, 6)) || (l.ville || "").toLowerCase().includes(v));
+      // fallback softer
+      if (list.length === 0) {
+        list = lieux.filter((l) => {
+          const lv = (l.ville || "").toLowerCase();
+          return intent.ville.split(/[\s-]/).some((part) => part.length > 3 && lv.includes(part.toLowerCase().slice(0, 5)));
+        });
+        if (intent.type) list = list.filter((l) => l.type === intent.type);
+      }
+    }
+    if (intent.budgetMax != null) {
+      list = list.filter((l) => l.budget == null || l.budget <= intent.budgetMax);
+    }
+    if (intent.budgetMin != null) {
+      list = list.filter((l) => l.budget != null && l.budget >= intent.budgetMin);
+    }
+    if (intent.motCle && intent.motCle.length > 2) {
+      const m = intent.motCle.toLowerCase();
+      const byName = list.filter(
+        (l) =>
+          l.nom.toLowerCase().includes(m) ||
+          (l.ville || "").toLowerCase().includes(m),
+      );
+      if (byName.length) list = byName;
+    }
+
+    // Tri
+    const tri = intent.tri || (intent.nearMe ? "proximite" : intent.best ? "note" : "note");
+    if (tri === "proximite" && positionUtilisateur) {
+      list.sort(
+        (a, b) =>
+          distanceKm(positionUtilisateur.lat, positionUtilisateur.lng, a.coords[0], a.coords[1]) -
+          distanceKm(positionUtilisateur.lat, positionUtilisateur.lng, b.coords[0], b.coords[1]),
+      );
+    } else if (tri === "budgetCroissant") {
+      list.sort((a, b) => (a.budget ?? Infinity) - (b.budget ?? Infinity));
+    } else if (tri === "budgetDecroissant") {
+      list.sort((a, b) => (b.budget ?? -Infinity) - (a.budget ?? -Infinity));
+    } else {
+      list.sort((a, b) => getNoteLieu(b) - getNoteLieu(a) || getNbAvisLieu(b) - getNbAvisLieu(a));
+    }
+
+    return list;
+  }
+
+  function applyToUI(intent, results) {
+    // Synchronise filtres app
+    filtresActifs.motCle = intent.ville ? intent.ville.toLowerCase() : intent.motCle || "";
+    filtresActifs.type = intent.type;
+    filtresActifs.budgetMin = intent.budgetMin || 0;
+    filtresActifs.budgetMax = intent.budgetMax != null ? intent.budgetMax : Infinity;
+    filtresActifs.tri = intent.tri || "note";
+
+    if (inputSearch) inputSearch.value = filtresActifs.motCle;
+    if (inputBudgetMin) inputBudgetMin.value = intent.budgetMin || "";
+    if (inputBudgetMax) inputBudgetMax.value = intent.budgetMax != null ? intent.budgetMax : "";
+    if (selectTri) selectTri.value = filtresActifs.tri;
+
+    boutonsFiltreType.forEach((btn) => {
+      btn.classList.toggle("actif", btn.dataset.type === intent.type);
+    });
+
+    // Affiche résultats filtrés (sous-ensemble intelligent)
+    mettreAJourAffichage(results.slice(0, 40));
+    if (typeof majClearSearchVisibility === "function") majClearSearchVisibility();
+  }
+
+  function formatBudget(b) {
+    if (b == null) return "—";
+    return b.toLocaleString("fr-FR") + " F";
+  }
+
+  function buildResultsHtml(results, intent) {
+    if (!results.length) {
+      return `<p>Aucun lieu trouvé pour cette demande. Essayez une autre ville, un budget plus large ou un type différent.</p>
+        <div class="ai-actions">
+          <button type="button" class="ai-act" data-ai-action="clear">Réinitialiser les filtres</button>
+          <button type="button" class="ai-act" data-ai-action="geo">Activer ma position</button>
+        </div>`;
+    }
+
+    const top = results.slice(0, 5);
+    const items = top
+      .map((l, i) => {
+        const note = getNoteLieu(l).toFixed(1);
+        const budget = formatBudget(l.budget);
+        let dist = "";
+        if (positionUtilisateur) {
+          const d = distanceKm(positionUtilisateur.lat, positionUtilisateur.lng, l.coords[0], l.coords[1]);
+          dist = ` · ${d < 10 ? d.toFixed(1) : Math.round(d)} km`;
+        }
+        return `<li data-ai-idx="${i}" title="Voir sur la carte">
+          <span class="ai-li-name">${esc(l.nom)}</span>
+          <span class="ai-li-meta">★${note} · ${budget}${dist}</span>
+        </li>`;
+      })
+      .join("");
+
+    const typeTxt = intent.typeLabel || "lieux";
+    const villeTxt = intent.ville ? ` à <strong>${esc(intent.ville)}</strong>` : "";
+    const budgetTxt =
+      intent.budgetMax != null
+        ? ` (budget ≤ <strong>${intent.budgetMax.toLocaleString("fr-FR")} FCFA</strong>)`
+        : "";
+    const total = results.length;
+
+    let intro = `J'ai trouvé <strong>${total}</strong> ${typeTxt}${villeTxt}${budgetTxt}. Voici le top ${Math.min(5, total)} :`;
+
+    const actions = [
+      `<button type="button" class="ai-act primary" data-ai-action="show-all">Voir sur la carte</button>`,
+      `<button type="button" class="ai-act" data-ai-action="add-top">➕ Ajouter le top 3 à l'itinéraire</button>`,
+    ];
+    if (intent.itineraire || total >= 2) {
+      actions.push(`<button type="button" class="ai-act" data-ai-action="route">Calculer un trajet</button>`);
+    }
+
+    return `<p>${intro}</p><ul class="ai-list">${items}</ul><div class="ai-actions">${actions.join("")}</div>`;
+  }
+
+  function proposeWeekend() {
+    const picks = [];
+    const pool = (type, villePart) =>
+      lieux.filter(
+        (l) =>
+          l.type === type &&
+          (!villePart || (l.ville || "").toLowerCase().includes(villePart)),
+      );
+
+    const cascade = pool("tourisme", "banfora").concat(
+      lieux.filter((l) => /cascade|karfiguéla|fabédougou|loropéni/i.test(l.nom)),
+    );
+    const hotelBanfora = pool("hotel", "banfora");
+    const restoOuaga = pool("restaurant", "ouaga");
+    const hotelOuaga = pool("hotel", "ouaga");
+
+    const take = (arr, n) =>
+      [...arr].sort((a, b) => getNoteLieu(b) - getNoteLieu(a)).slice(0, n);
+
+    picks.push(...take(cascade.length ? cascade : pool("tourisme"), 2));
+    picks.push(...take(hotelBanfora.length ? hotelBanfora : hotelOuaga, 1));
+    picks.push(...take(restoOuaga, 1));
+
+    // unique by nom
+    const seen = new Set();
+    const unique = [];
+    for (const p of picks) {
+      if (!seen.has(p.nom)) {
+        seen.add(p.nom);
+        unique.push(p);
+      }
+    }
+    return unique.slice(0, 5);
+  }
+
+  function respond(raw) {
+    const intent = parseIntent(raw);
+
+    if (intent.help) {
+      return {
+        html: `<p>Je comprends le français naturel. Exemples :</p>
+          <ul class="ai-list" style="pointer-events:none">
+            <li><span class="ai-li-name">« Hôtels pas chers à Ouaga »</span></li>
+            <li><span class="ai-li-name">« Restaurants près de moi »</span></li>
+            <li><span class="ai-li-name">« Fast-foods Bobo sous 4000 »</span></li>
+            <li><span class="ai-li-name">« Sites touristiques Banfora »</span></li>
+            <li><span class="ai-li-name">« Propose un itinéraire week-end »</span></li>
+          </ul>
+          <p style="margin-top:8px;color:var(--text-muted);font-size:0.8rem">Cliquez un résultat pour le centrer sur la carte. Utilisez ➕ pour l'itinéraire.</p>`,
+        results: [],
+        intent,
+      };
+    }
+
+    if (intent.clear) {
+      filtresActifs.motCle = "";
+      filtresActifs.type = null;
+      filtresActifs.budgetMin = 0;
+      filtresActifs.budgetMax = Infinity;
+      filtresActifs.tri = "proximite";
+      if (inputSearch) inputSearch.value = "";
+      if (inputBudgetMin) inputBudgetMin.value = "";
+      if (inputBudgetMax) inputBudgetMax.value = "";
+      boutonsFiltreType.forEach((b) => b.classList.remove("actif"));
+      appliquerFiltres();
+      return {
+        html: `<p>Filtres réinitialisés. Tous les lieux sont à nouveau visibles.</p>`,
+        results: lieux,
+        intent,
+      };
+    }
+
+    if (intent.itineraire && !intent.type && !intent.ville) {
+      const week = proposeWeekend();
+      lastResults = week;
+      applyToUI({ type: null, ville: null, budgetMax: null, budgetMin: null, tri: "note", motCle: "" }, week);
+      // auto-add suggestion
+      const html =
+        `<p>Voici une idée de <strong>week-end au Burkina</strong> (tourisme + hôtel + resto) :</p>` +
+        buildResultsHtml(week, { typeLabel: "étapes", ville: null, budgetMax: null, itineraire: true }).replace(
+          /^<p>.*?<\/p>/,
+          "",
+        );
+      return { html, results: week, intent };
+    }
+
+    if (intent.nearMe && !positionUtilisateur) {
+      return {
+        html: `<p>Pour trier par proximité, j'ai besoin de votre position.</p>
+          <div class="ai-actions">
+            <button type="button" class="ai-act primary" data-ai-action="geo">Activer ma position</button>
+          </div>`,
+        results: [],
+        intent,
+      };
+    }
+
+    const results = filtrerLieux(intent);
+    lastResults = results;
+    applyToUI(intent, results);
+
+    // Phrase d'intro contextuelle
+    if (!intent.type && !intent.ville && !intent.motCle && !intent.budgetMax) {
+      return {
+        html: `<p>Je n'ai pas bien saisi. Précisez un <strong>type</strong> (hôtel, resto…), une <strong>ville</strong> ou un <strong>budget</strong>.</p>
+          <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">Ex. « meilleurs hôtels à Bobo sous 30000 »</p>`,
+        results,
+        intent,
+      };
+    }
+
+    return {
+      html: buildResultsHtml(results, intent),
+      results,
+      intent,
+    };
+  }
+
+  function handleAction(action) {
+    if (action === "geo") {
+      utiliserMaPosition(true);
+      addMsg(`<p>Demande de géolocalisation envoyée… Autorisez l'accès dans le navigateur.</p>`, "bot");
+      return;
+    }
+    if (action === "clear") {
+      const r = respond("vider les filtres");
+      addMsg(r.html, "bot");
+      return;
+    }
+    if (action === "show-all") {
+      activerOnglet("recherche");
+      if (lastResults.length) mettreAJourAffichage(lastResults.slice(0, 40));
+      showToast("Résultats affichés sur la carte", "success");
+      return;
+    }
+    if (action === "add-top") {
+      const top = lastResults.slice(0, 3);
+      top.forEach((l) => {
+        const deja = itineraire.some((e) => e.nom === l.nom && e.ville === l.ville);
+        if (!deja) itineraire.push(l);
+      });
+      afficherItineraire();
+      activerOnglet("itineraire");
+      showToast(`${top.length} lieu(x) ajouté(s) à l'itinéraire`, "success");
+      addMsg(`<p>Les <strong>${top.length}</strong> premiers lieux ont été ajoutés à l'itinéraire. Ouvrez l'onglet <strong>Itinéraire</strong> pour calculer le trajet.</p>`, "bot");
+      return;
+    }
+    if (action === "route") {
+      if (!lastResults.length) return;
+      lastResults.slice(0, 4).forEach((l) => {
+        const deja = itineraire.some((e) => e.nom === l.nom && e.ville === l.ville);
+        if (!deja) itineraire.push(l);
+      });
+      afficherItineraire();
+      activerOnglet("itineraire");
+      setTimeout(() => calculerItineraire(), 300);
+      addMsg(`<p>Itinéraire en cours de calcul avec les meilleurs lieux sélectionnés…</p>`, "bot");
+      return;
+    }
+  }
+
+  function onSubmit(text) {
+    const t = text.trim();
+    if (!t) return;
+    addMsg(esc(t), "user");
+    inputEl.value = "";
+    const typing = showTyping();
+    // léger délai pour effet "réflexion"
+    setTimeout(() => {
+      typing.remove();
+      try {
+        const { html } = respond(t);
+        const msg = addMsg(html, "bot");
+        // bind list clicks
+        msg.querySelectorAll(".ai-list li[data-ai-idx]").forEach((li) => {
+          li.addEventListener("click", () => {
+            const idx = parseInt(li.dataset.aiIdx, 10);
+            const lieu = lastResults[idx];
+            if (!lieu) return;
+            map.setView(lieu.coords, 16);
+            const m = markers.find((mk) => {
+              const ll = mk.getLatLng();
+              return Math.abs(ll.lat - lieu.coords[0]) < 1e-5 && Math.abs(ll.lng - lieu.coords[1]) < 1e-5;
+            });
+            if (m) m.openPopup();
+            showToast(lieu.nom, "info");
+            if (typeof isMobileLayout === "function" && isMobileLayout() && typeof setPanelOpen === "function") {
+              setPanelOpen(false);
+            }
+          });
+        });
+        msg.querySelectorAll("[data-ai-action]").forEach((btn) => {
+          btn.addEventListener("click", () => handleAction(btn.dataset.aiAction));
+        });
+      } catch (err) {
+        console.error(err);
+        addMsg(`<p>Une erreur est survenue. Réessayez avec une formulation plus simple.</p>`, "bot");
+      }
+    }, 380 + Math.random() * 220);
+  }
+
+  formEl.addEventListener("submit", (e) => {
+    e.preventDefault();
+    onSubmit(inputEl.value);
+  });
+
+  suggestionsEl?.querySelectorAll(".ai-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const q = chip.dataset.q || chip.textContent;
+      activerOnglet("assistant");
+      onSubmit(q);
+    });
+  });
+
+  // Message de bienvenue à la première ouverture de l'onglet
+  const observerTabs = () => {
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        if (tab.dataset.tab === "assistant" && !welcomeShown) {
+          welcomeShown = true;
+          addMsg(
+            `<p>Bonjour ! Je suis l'<strong>assistant Nearix</strong>. Posez-moi une question en français sur les lieux au Burkina Faso.</p>
+             <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">Astuce : utilisez les suggestions ci-dessus ou tapez librement.</p>`,
+            "bot",
+          );
+        }
+      });
+    });
+  };
+  observerTabs();
 })();
