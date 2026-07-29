@@ -1,5 +1,5 @@
 /* ============================================================
-   NEARIX PRO — Design system moderne & luxe
+   NEARIX PRO 12.0 — Design system moderne & luxe
    Inspiré Google Maps + esthétique premium (or / noir / ivoire)
    ============================================================ */
 
@@ -73,12 +73,17 @@ html.theme-light {
 
 html {
   height: 100%;
+  height: 100dvh; /* mobile : barre d'adresse dynamique */
   overflow: hidden; /* app plein écran, scroll uniquement dans le panneau */
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   height: 100%;
+  height: 100dvh;
+  max-width: 100vw;
+  overflow-x: hidden;
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.45;
@@ -88,6 +93,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
   display: flex;
   flex-direction: column;
+  /* safe areas (encoche iPhone, etc.) */
+  padding-top: env(safe-area-inset-top, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 button,
@@ -161,6 +171,7 @@ a {
 /* Barre de recherche centrale */
 .search-shell {
   flex: 1;
+  min-width: 0; /* empêche le débordement horizontal sur mobile */
   max-width: 560px;
   margin: 0 auto;
 }
@@ -357,6 +368,8 @@ a {
   gap: 12px;
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .tab-panel.actif {
   display: flex;
@@ -898,10 +911,27 @@ a {
   display: none !important;
 }
 
+/* ---------- Overlay panneau mobile ---------- */
+.panel-backdrop {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  background: rgba(0, 0, 0, 0.45);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.panel-backdrop.visible {
+  display: block;
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 860px) {
   :root {
     --panel-w: 100%;
+    --topbar-h: 56px;
   }
 
   .only-mobile {
@@ -912,6 +942,10 @@ a {
     display: none;
   }
 
+  .app {
+    position: relative;
+  }
+
   .panel {
     position: absolute;
     top: 0;
@@ -919,41 +953,120 @@ a {
     bottom: 0;
     width: min(100%, 400px);
     max-width: 100%;
-    transform: translateX(0);
+    /* fermé par défaut → carte visible au premier chargement */
+    transform: translateX(-105%);
     box-shadow: var(--shadow);
+    z-index: 20;
+    transition: transform 0.28s var(--ease);
+    padding-left: env(safe-area-inset-left, 0);
+  }
+  .panel:not(.collapsed) {
+    transform: translateX(0);
   }
   .panel.collapsed {
     transform: translateX(-105%);
   }
 
+  .map-wrap {
+    width: 100%;
+    flex: 1;
+  }
+
   .map-controls {
-    right: 12px;
-    bottom: 16px;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
   }
   .map-legend {
-    left: 12px;
-    bottom: 16px;
+    left: max(12px, env(safe-area-inset-left, 0px));
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    max-width: calc(100% - 80px);
   }
 
   .search-shell {
     max-width: none;
+    min-width: 0;
   }
   .btn-search {
     padding: 0 12px;
     font-size: 0.8rem;
   }
+
+  .topbar-inner {
+    gap: 8px;
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+
+  .footer {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    height: auto;
+    min-height: var(--footer-h);
+  }
+
+  .toast {
+    bottom: max(56px, calc(env(safe-area-inset-bottom, 0px) + 48px));
+    max-width: calc(100vw - 32px);
+  }
 }
 
 @media (max-width: 480px) {
   .brand-text {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
+  }
+  .brand-logo {
+    width: 30px;
+    height: 30px;
   }
   .topbar-inner {
-    padding: 0 10px;
-    gap: 8px;
+    padding: 0 8px;
+    gap: 6px;
   }
   .search-box {
     height: 40px;
+    padding-left: 10px;
+  }
+  .btn-search {
+    padding: 0 10px;
+    font-size: 0.75rem;
+  }
+  .btn-ghost.btn-icon-only,
+  .btn-icon-only {
+    width: 36px;
+    height: 36px;
+  }
+
+  .type-chips .chip {
+    font-size: 0.7rem;
+    height: 28px;
+    padding: 0 8px;
+  }
+
+  .onboarding {
+    padding: 12px;
+    align-items: flex-end;
+  }
+  .onboarding-card {
+    max-height: min(92dvh, 640px);
+    overflow-y: auto;
+    padding: 20px 16px 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .onboarding-logo {
+    width: 56px;
+    height: 56px;
+  }
+  .onboarding-card h1 {
+    font-size: 1.25rem;
+  }
+  .onboarding-card h2 {
+    font-size: 1.15rem;
+  }
+}
+
+/* Tablette : panneau un peu plus large mais pas full */
+@media (min-width: 481px) and (max-width: 860px) {
+  .panel {
+    width: min(92vw, 420px);
   }
 }
 
@@ -1154,4 +1267,249 @@ kbd {
   font-size: 0.75rem;
   padding: 0 10px;
   height: 30px;
+}
+
+/* ============================================================
+   Assistant IA (onglet)
+   ============================================================ */
+.badge-ai {
+  background: linear-gradient(135deg, #d4af37, #7c5cff);
+  color: #0a0a0a;
+  font-size: 0.65rem;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+}
+
+.ai-intro {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.ai-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.25), rgba(124, 92, 255, 0.25));
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+.ai-intro strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 2px;
+}
+.ai-intro p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.ai-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-chip {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  transition: all var(--duration) var(--ease);
+  white-space: nowrap;
+}
+.ai-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ai-chat {
+  flex: 1;
+  min-height: 180px;
+  max-height: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.ai-msg {
+  max-width: 95%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  animation: ai-in 0.22s var(--ease);
+}
+@keyframes ai-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ai-msg.bot {
+  align-self: flex-start;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+  color: var(--text);
+}
+.ai-msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #0a0a0a;
+  border-bottom-right-radius: 4px;
+  font-weight: 500;
+}
+.ai-msg.bot strong {
+  color: var(--accent);
+}
+.ai-msg .ai-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-msg .ai-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color var(--duration) var(--ease), background var(--duration) var(--ease);
+}
+.ai-msg .ai-list li:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.ai-msg .ai-list .ai-li-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-msg .ai-list .ai-li-meta {
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.ai-msg .ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ai-msg .ai-act {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  transition: all var(--duration) var(--ease);
+}
+.ai-msg .ai-act:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.ai-msg .ai-act.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a0a0a;
+}
+.ai-msg .ai-act.primary:hover {
+  background: var(--accent-hover);
+  color: #0a0a0a;
+}
+
+.ai-typing {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+.ai-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: ai-dot 1s infinite ease-in-out;
+}
+.ai-typing span:nth-child(2) { animation-delay: 0.15s; }
+.ai-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+.ai-form {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+#aiInput {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--duration) var(--ease);
+}
+#aiInput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+#aiInput::placeholder {
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+.ai-send {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ai-send svg {
+  display: block;
+}
+
+/* Onglet IA : layout chat plein hauteur */
+#tab-assistant.tab-panel.actif {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
