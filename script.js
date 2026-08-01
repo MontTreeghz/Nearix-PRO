@@ -1497,7 +1497,19 @@ async function chargerLieuxAutourDe(lat, lon, libelleZone) {
   if (positionUtilisateur) {
     lieux = trierParProximite(positionUtilisateur.lat, positionUtilisateur.lng);
   }
+  // fitMap=true après chargement d'une zone
+  const prev = mettreAJourAffichage;
+  // appliquerFiltres appelle mettreAJourAffichage(..., false) — on force un fit après
   appliquerFiltres();
+  if (mapReady() && markers.length > 0) {
+    try {
+      const groupe = L.featureGroup(markers);
+      const b = groupe.getBounds();
+      if (b && typeof b.isValid === "function" && b.isValid()) {
+        map.fitBounds(b, { padding: [40, 40], maxZoom: 14 });
+      }
+    } catch (_) {}
+  }
 }
 
 // ============================================================
@@ -1587,13 +1599,22 @@ function majMarqueurUtilisateur(lat, lng) {
 }
 
 
-function afficherResultats(resultats) {
+function afficherResultats(resultats, totalCount) {
+  if (!listeResultats) return;
   listeResultats.innerHTML = "";
-  resultsCount.textContent = resultats.length
-    ? `${resultats.length} lieu${resultats.length > 1 ? "x" : ""}`
-    : "";
+  const shown = (resultats || []).length;
+  const total = totalCount != null ? totalCount : shown;
+  if (resultsCount) {
+    if (total === 0) {
+      resultsCount.textContent = "";
+    } else if (total > shown) {
+      resultsCount.textContent = `${shown} / ${total} lieux`;
+    } else {
+      resultsCount.textContent = `${total} lieu${total > 1 ? "x" : ""}`;
+    }
+  }
 
-  if (resultats.length === 0) {
+  if (shown === 0) {
     listeResultats.innerHTML = `<li class="empty-state">Aucun résultat. Essayez un autre mot-clé ou élargissez le budget.</li>`;
     return;
   }
@@ -1716,10 +1737,9 @@ function afficherResultats(resultats) {
   });
 }
 
-function afficherMarqueurs(resultats) {
+function afficherMarqueurs(resultats, fitMap = false) {
   if (!mapReady()) return;
 
-  // Nettoyage sûr
   markers.forEach((m) => {
     try {
       map.removeLayer(m);
@@ -1741,33 +1761,46 @@ function afficherMarqueurs(resultats) {
   liste.forEach((lieu) => {
     try {
       enrichirLieu(lieu);
+      const note = getNoteLieu(lieu);
+      const avis = getNbAvisLieu(lieu);
       const budgetTxt =
-        lieu.budget !== null && lieu.budget !== undefined
+        lieu.budget != null
           ? `${Number(lieu.budget).toLocaleString("fr-FR")} FCFA`
           : "Prix non communiqué";
-      const starsHtml = htmlEtoiles(getNoteLieu(lieu));
+      const starsHtml = htmlEtoiles(note);
       const googleUrl = urlGoogleMaps(lieu);
-      const marker = L.marker(lieu.coords).bindPopup(
-        `<div class="popup-lieu">
-          <strong>${String(lieu.nom || "").replace(/</g, "&lt;")}</strong><br/>
-          <span class="popup-rating">${starsHtml} ${getNoteLieu(lieu).toFixed(1)}</span><br/>
-          ${LABELS_TYPE[lieu.type] || lieu.type} · ${String(lieu.ville || "").replace(/</g, "&lt;")}<br/>
-          ${budgetTxt}<br/>
-          <a class="popup-google" href="${googleUrl}" target="_blank" rel="noopener noreferrer">Avis Google Maps</a>
-        </div>`,
-      );
-      marker.addTo(map);
+      const nomEsc = String(lieu.nom || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const villeEsc = String(lieu.ville || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const typeLabel = (LABELS_TYPE && LABELS_TYPE[lieu.type]) || lieu.type || "";
+      const marker = L.marker(lieu.coords)
+        .addTo(map)
+        .bindPopup(
+          `<div class="popup-lieu">` +
+            `<strong>${nomEsc}</strong><br>` +
+            `<div class="popup-rating">${starsHtml} <span class="note-num">${Number(note).toFixed(1)}</span> · ${Number(avis).toLocaleString("fr-FR")} avis</div>` +
+            `${typeLabel} · ${villeEsc}<br>` +
+            `${budgetTxt}<br>` +
+            `<a class="popup-google" href="${googleUrl}" target="_blank" rel="noopener noreferrer">Voir les avis Google Maps →</a>` +
+            `</div>`,
+        );
       markers.push(marker);
     } catch (err) {
       console.warn("[Nearix] marker skip", lieu && lieu.nom, err);
     }
   });
 
-  if (markers.length > 0) {
+  // fitBounds uniquement si demandé (évite le "saut" à chaque filtre)
+  if (fitMap && markers.length > 0) {
     try {
       const groupe = L.featureGroup(markers);
       const b = groupe.getBounds();
-      if (b && b.isValid && b.isValid()) {
+      if (b && typeof b.isValid === "function" && b.isValid()) {
         map.fitBounds(b, { padding: [40, 40], maxZoom: 15 });
       }
     } catch (err) {
@@ -1777,16 +1810,13 @@ function afficherMarqueurs(resultats) {
 }
 
 
-function mettreAJourAffichage(resultats) {
+/** @param {boolean} [fitMap=false] recentrer la carte sur les résultats */
+function mettreAJourAffichage(resultats, fitMap = false) {
   const list = Array.isArray(resultats) ? resultats : [];
+  const total = list.length;
   // Limite liste + marqueurs pour fluidité mobile
-  afficherResultats(list.slice(0, MAX_RESULTS_LIST));
-  afficherMarqueurs(list.slice(0, MAX_MARKERS));
-  if (resultsCount) {
-    const n = list.length;
-    resultsCount.textContent =
-      n === 0 ? "" : n > MAX_RESULTS_LIST ? `${MAX_RESULTS_LIST}+` : String(n);
-  }
+  afficherResultats(list.slice(0, MAX_RESULTS_LIST), total);
+  afficherMarqueurs(list.slice(0, MAX_MARKERS), fitMap);
 }
 
 // ============================================================
@@ -1825,7 +1855,7 @@ function appliquerFiltres() {
   });
 
   resultats = trierResultats(resultats, filtresActifs.tri);
-  mettreAJourAffichage(resultats);
+  mettreAJourAffichage(resultats, false);
 }
 
 function trierResultats(resultats, tri) {
@@ -1906,7 +1936,11 @@ function rechercherLieu() {
   );
   if (villeKey) {
     const [lat, lon] = VILLES_BF[villeKey];
-    map.setView([lat, lon], 13);
+    if (mapReady()) {
+      try {
+        map.setView([lat, lon], 13);
+      } catch (_) {}
+    }
     chargerLieuxAutourDe(
       lat,
       lon,
@@ -2388,11 +2422,11 @@ function majClearSearchVisibility() {
 })();
 
 // Recherche
-boutonRecherche.addEventListener("click", rechercherLieu);
-inputSearch.addEventListener("keypress", (e) => {
+boutonRecherche?.addEventListener("click", rechercherLieu);
+inputSearch?.addEventListener("keypress", (e) => {
   if (e.key === "Enter") rechercherLieu();
 });
-inputSearch.addEventListener("input", majClearSearchVisibility);
+inputSearch?.addEventListener("input", majClearSearchVisibility);
 btnClearSearch?.addEventListener("click", () => {
   inputSearch.value = "";
   majClearSearchVisibility();
@@ -2402,28 +2436,42 @@ btnClearSearch?.addEventListener("click", () => {
 
 // Budget : réapplique au blur / change
 [inputBudgetMin, inputBudgetMax].forEach((inp) => {
-  inp.addEventListener("change", rechercherLieu);
+  inp?.addEventListener("change", rechercherLieu);
 });
 
 // Tri
-selectTri.addEventListener("change", () => {
+selectTri?.addEventListener("change", () => {
   filtresActifs.tri = selectTri.value;
   appliquerFiltres();
 });
 
 // Position
-boutonLocalisation.addEventListener("click", () => utiliserMaPosition(true));
+boutonLocalisation?.addEventListener("click", () => utiliserMaPosition(true));
 boutonRecenter?.addEventListener("click", () => {
-  if (positionUtilisateur) {
-    map.setView([positionUtilisateur.lat, positionUtilisateur.lng], 14);
+  if (positionUtilisateur && mapReady()) {
+    try {
+      map.setView([positionUtilisateur.lat, positionUtilisateur.lng], 14);
+    } catch (_) {}
   } else {
     utiliserMaPosition(true);
   }
 });
 
 // Zoom custom
-boutonZoomIn?.addEventListener("click", () => map.zoomIn());
-boutonZoomOut?.addEventListener("click", () => map.zoomOut());
+boutonZoomIn?.addEventListener("click", () => {
+  if (mapReady()) {
+    try {
+      map.zoomIn();
+    } catch (_) {}
+  }
+});
+boutonZoomOut?.addEventListener("click", () => {
+  if (mapReady()) {
+    try {
+      map.zoomOut();
+    } catch (_) {}
+  }
+});
 
 // Filtres type
 boutonsFiltreType.forEach((btn) => {
@@ -2431,8 +2479,8 @@ boutonsFiltreType.forEach((btn) => {
 });
 
 // Itinéraire
-boutonCalculerItineraire.addEventListener("click", calculerItineraire);
-boutonViderItineraire.addEventListener("click", viderItineraire);
+boutonCalculerItineraire?.addEventListener("click", calculerItineraire);
+boutonViderItineraire?.addEventListener("click", viderItineraire);
 
 // Onglets
 tabs.forEach((tab) => {
