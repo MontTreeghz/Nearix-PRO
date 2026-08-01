@@ -931,15 +931,11 @@ a {
 @media (max-width: 860px) {
   :root {
     --panel-w: 100%;
-    --topbar-h: 56px;
+    --topbar-h: auto;
   }
 
   .only-mobile {
     display: flex;
-  }
-
-  .btn-label {
-    display: none;
   }
 
   .app {
@@ -982,20 +978,7 @@ a {
     max-width: calc(100% - 80px);
   }
 
-  .search-shell {
-    max-width: none;
-    min-width: 0;
-  }
-  .btn-search {
-    padding: 0 12px;
-    font-size: 0.8rem;
-  }
-
-  .topbar-inner {
-    gap: 8px;
-    padding-left: max(10px, env(safe-area-inset-left, 0px));
-    padding-right: max(10px, env(safe-area-inset-right, 0px));
-  }
+  /* topbar mobile layout : voir bloc dédié ci-dessous */
 
   .footer {
     padding-bottom: env(safe-area-inset-bottom, 0);
@@ -1018,8 +1001,10 @@ a {
     height: 30px;
   }
   .topbar-inner {
-    padding: 0 8px;
-    gap: 6px;
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+    column-gap: 4px;
+    row-gap: 8px;
   }
   .search-box {
     height: 40px;
@@ -1033,6 +1018,10 @@ a {
   .btn-icon-only {
     width: 36px;
     height: 36px;
+  }
+  /* Très petit écran : icône seule pour position si besoin d'espace */
+  .btn-label {
+    max-width: 64px;
   }
 
   .type-chips .chip {
@@ -1557,4 +1546,97 @@ html, body {
   width: 100% !important;
   height: 100% !important;
   background: #1a1a1a;
+}
+
+
+/* ========== Topbar mobile : 2 lignes ==========
+   Ligne 1 : logo | Ma position | thème
+   Ligne 2 : barre de recherche | Rechercher | menu ☰
+   ============================================= */
+@media (max-width: 860px) {
+  :root {
+    --topbar-h: auto;
+  }
+
+  .topbar {
+    height: auto;
+    min-height: 0;
+  }
+
+  .topbar-inner {
+    display: grid;
+    height: auto;
+    max-width: none;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "brand actions actions"
+      "search search menu";
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 8px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+
+  .brand {
+    grid-area: brand;
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    grid-area: actions;
+    justify-self: end;
+    gap: 2px;
+  }
+
+  .search-shell {
+    grid-area: search;
+    max-width: none;
+    min-width: 0;
+    width: 100%;
+    margin: 0;
+  }
+
+  .search-box {
+    width: 100%;
+  }
+
+  .btn-panel-toggle,
+  #btnTogglePanel.only-mobile {
+    grid-area: menu;
+    display: flex !important;
+    justify-self: end;
+  }
+
+  /* Sur mobile : garder un libellé compact pour « Ma position » */
+  .btn-label {
+    display: inline;
+    font-size: 0.75rem;
+    font-weight: 500;
+    max-width: 72px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #btnLocalisation {
+    height: 36px;
+    padding: 0 8px;
+    gap: 4px;
+  }
+  #btnLocalisation svg {
+    flex-shrink: 0;
+  }
+
+  .btn-search {
+    padding: 0 12px;
+    font-size: 0.8rem;
+  }
+
+  .only-mobile {
+    display: flex;
+  }
 }
