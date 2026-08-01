@@ -774,7 +774,8 @@ a {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 500;
+  /* Sous le panneau (z=20) pour ne pas bloquer la saisie IA / liste */
+  z-index: 5;
 }
 
 .map-fab {
@@ -801,7 +802,7 @@ a {
   position: absolute;
   left: 14px;
   bottom: 24px;
-  z-index: 500;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1638,5 +1639,24 @@ html, body {
 
   .only-mobile {
     display: flex;
+  }
+}
+
+
+/* Mobile : légende / FABs ne passent plus au-dessus du panneau */
+@media (max-width: 860px) {
+  .map-legend,
+  .map-controls {
+    z-index: 5;
+  }
+  /* Panneau ouvert → masquer la légende (évite de bloquer le champ IA) */
+  .app:has(#panel:not(.collapsed)) .map-legend {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+  }
+  /* Fallback navigateurs sans :has() — légende plus discrète en bas */
+  .map-legend {
+    pointer-events: none;
   }
 }
