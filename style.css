@@ -1513,3 +1513,48 @@ kbd {
   flex-direction: column;
   gap: 12px;
 }
+
+
+/* ---------- Stabilisation mobile (iOS / Android) ---------- */
+html, body {
+  touch-action: manipulation; /* réduit le délai 300ms + double-tap zoom parasite */
+  -webkit-tap-highlight-color: transparent;
+}
+
+#map {
+  touch-action: pan-x pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Empêche le scroll "rubber band" de casser le layout plein écran */
+.panel, .tab-panel, .ai-chat {
+  overscroll-behavior: contain;
+}
+
+/* Inputs iOS : évite zoom auto si font-size < 16px */
+@media (max-width: 860px) {
+  #searchInput,
+  #aiInput,
+  .field-row input,
+  .field-row select {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe area bottom pour FABs sous la home indicator */
+@supports (padding: max(0px)) {
+  .map-controls {
+    bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  }
+  .map-legend {
+    bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Leaflet canvas/path ne doit pas déborder */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  background: #1a1a1a;
+}
