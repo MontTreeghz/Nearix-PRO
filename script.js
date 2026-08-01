@@ -1,7 +1,7 @@
 /**
  * ============================================================
  * NEARIX PRO — Script principal
- * Version 12.0 · multi-services · routage 2-opt · mobile-first · luxe
+ * Version 12.1 · multi-services · routage 2-opt · mobile-first · stable (PC/Android/iOS)
  * ============================================================
  *
  * Architecture :
@@ -18,6 +18,59 @@
 // ============================================================
 // 1. SÉLECTION DES ÉLÉMENTS DU DOM
 // ============================================================
+
+// ============================================================
+// 0. SÉCURITÉ RUNTIME (anti-crash PC / Android / iPhone)
+// ============================================================
+(function hardenRuntime() {
+  // Empêche les erreurs non gérées de "tuer" l'UI sur WebView
+  window.addEventListener("error", function (e) {
+    console.error("[Nearix] error:", e.message, e.filename, e.lineno);
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    console.error("[Nearix] unhandledrejection:", e.reason);
+  });
+})();
+
+function safeLocalGet(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? fallback : v;
+  } catch (_) {
+    return fallback;
+  }
+}
+function safeLocalSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+function safeLocalRemove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (_) {}
+}
+
+/** Leaflet chargé ? */
+function leafletReady() {
+  return typeof L !== "undefined" && L && typeof L.map === "function";
+}
+
+/** Carte initialisée et utilisable */
+function mapReady() {
+  return leafletReady() && typeof map !== "undefined" && map && map._container;
+}
+
+/** Limite le nombre de marqueurs affichés (évite freeze mobile) */
+const MAX_MARKERS = 80;
+const MAX_RESULTS_LIST = 60;
+
+/** AbortController courant pour Overpass */
+let overpassAbort = null;
+
 const inputSearch = document.querySelector("#searchInput");
 const btnClearSearch = document.querySelector("#btnClearSearch");
 const inputBudgetMin = document.querySelector("#budgetMinInput");
@@ -1315,20 +1368,47 @@ async function rechercherLieuxReels(lat, lon, rayonMetres = 5000) {
     out body;
   `;
 
-  const reponse = await fetch("https://overpass-api.de/api/interpreter", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: "data=" + encodeURIComponent(requeteOverpass),
+  // Timeout + abort pour éviter freeze réseau (Android / iOS)
+  if (overpassAbort) {
+    try { overpassAbort.abort(); } catch (_) {}
+  }
+  overpassAbort = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const signal = overpassAbort ? overpassAbort.signal : undefined;
+  const timeoutMs = 12000;
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      if (overpassAbort) {
+        try { overpassAbort.abort(); } catch (_) {}
+      }
+      reject(new Error("Délai dépassé (Overpass)"));
+    }, timeoutMs);
   });
 
-  if (!reponse.ok) {
-    throw new Error(`Erreur du service de recherche (code ${reponse.status})`);
-  }
+  try {
+    const fetchPromise = fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "data=" + encodeURIComponent(requeteOverpass),
+      signal,
+    });
+    const reponse = await Promise.race([fetchPromise, timeoutPromise]);
+    if (timeoutId) clearTimeout(timeoutId);
 
-  const donnees = await reponse.json();
-  return (donnees.elements || [])
-    .filter((el) => el.tags && el.tags.name)
-    .map(convertirEnLieu);
+    if (!reponse || !reponse.ok) {
+      throw new Error(
+        `Erreur du service de recherche (code ${reponse ? reponse.status : "?"})`,
+      );
+    }
+
+    const donnees = await reponse.json();
+    return (donnees.elements || [])
+      .filter((el) => el.tags && el.tags.name && el.lat != null && el.lon != null)
+      .map(convertirEnLieu)
+      .filter((l) => Array.isArray(l.coords) && l.coords.length === 2);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 /** Transforme un élément OSM en objet lieu utilisable par l'app */
@@ -1432,41 +1512,81 @@ let positionUtilisateur = null;
 let marqueurUtilisateur = null;
 
 function initMap() {
+  if (!leafletReady()) {
+    console.error("[Nearix] Leaflet non chargé");
+    const el = document.getElementById("map");
+    if (el) {
+      el.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:24px;text-align:center;color:#a8a89c;font-family:system-ui">Carte indisponible (Leaflet). Vérifiez votre connexion.</div>';
+    }
+    return;
+  }
+  const mapEl = document.getElementById("map");
+  if (!mapEl) return;
+  // Évite double init (HMR / re-entrée)
+  if (map && map._container) {
+    try { map.invalidateSize({ animate: false }); } catch (_) {}
+    return;
+  }
+
   // Vue initiale : Burkina Faso
   map = L.map("map", {
-    zoomControl: false, // on utilise nos propres FABs
+    zoomControl: false,
     attributionControl: true,
+    preferCanvas: true, // plus stable / rapide sur mobile
   }).setView([12.3714, -1.5197], 6);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "© OpenStreetMap",
     maxZoom: 19,
+    updateWhenIdle: true,
+    keepBuffer: 2,
   }).addTo(map);
 
-  // Recalcul taille après layout CSS
-  setTimeout(() => map.invalidateSize(), 150);
+  // Recalcul taille après layout CSS (mobile: barre d'adresse)
+  const fixSize = () => {
+    if (mapReady()) {
+      try { map.invalidateSize({ animate: false }); } catch (_) {}
+    }
+  };
+  setTimeout(fixSize, 100);
+  setTimeout(fixSize, 400);
+  setTimeout(fixSize, 1000);
+  window.addEventListener("orientationchange", () => setTimeout(fixSize, 300));
+  window.addEventListener("resize", () => {
+    clearTimeout(window.__nearixResizeT);
+    window.__nearixResizeT = setTimeout(fixSize, 150);
+  });
+  // iOS visualViewport
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", () => setTimeout(fixSize, 100));
+  }
 }
 
 /** Affiche / met à jour le marqueur bleu "Vous êtes ici" */
 function majMarqueurUtilisateur(lat, lng) {
-  if (marqueurUtilisateur) {
-    marqueurUtilisateur.setLatLng([lat, lng]);
-  } else {
-    marqueurUtilisateur = L.circleMarker([lat, lng], {
-      radius: 9,
-      color: "#ffffff",
-      fillColor: "#4da6ff",
-      fillOpacity: 1,
-      weight: 3,
-    })
-      .addTo(map)
-      .bindPopup("<strong>Vous êtes ici</strong>");
+  if (!mapReady()) return;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  try {
+    if (marqueurUtilisateur) {
+      marqueurUtilisateur.setLatLng([lat, lng]);
+    } else {
+      marqueurUtilisateur = L.circleMarker([lat, lng], {
+        radius: 9,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: "#4da6ff",
+        fillOpacity: 1,
+      })
+        .addTo(map)
+        .bindPopup("Vous êtes ici");
+    }
+  } catch (err) {
+    console.warn("[Nearix] user marker", err);
   }
 }
 
-// ============================================================
-// 6. AFFICHAGE RÉSULTATS (liste + marqueurs)
-// ============================================================
+
 function afficherResultats(resultats) {
   listeResultats.innerHTML = "";
   resultsCount.textContent = resultats.length
@@ -1500,27 +1620,31 @@ function afficherResultats(resultats) {
     // Ligne avis Google
     const ratingRow = document.createElement("div");
     ratingRow.className = "result-rating";
+    const noteVal = getNoteLieu(lieu);
+    const avisVal = getNbAvisLieu(lieu);
     ratingRow.innerHTML =
-      htmlEtoiles(lieu.note) +
-      `<span class="note-num">${lieu.note.toFixed(1)}</span>` +
-      `<span class="avis-count">(${lieu.nbAvis.toLocaleString("fr-FR")} avis)</span>`;
+      htmlEtoiles(noteVal) +
+      `<span class="note-num">${Number(noteVal).toFixed(1)}</span>` +
+      `<span class="avis-count">(${Number(avisVal).toLocaleString("fr-FR")} avis)</span>`;
 
     const meta = document.createElement("div");
     meta.className = "result-meta";
 
     const budgetTxt =
-      lieu.budget !== null
-        ? `${lieu.budget.toLocaleString("fr-FR")} FCFA`
+      lieu.budget != null
+        ? `${Number(lieu.budget).toLocaleString("fr-FR")} FCFA`
         : "Prix non communiqué";
     let distTxt = "";
-    if (positionUtilisateur) {
-      const d = distanceKm(
-        positionUtilisateur.lat,
-        positionUtilisateur.lng,
-        lieu.coords[0],
-        lieu.coords[1],
-      );
-      distTxt = `${d.toFixed(1)} km`;
+    if (positionUtilisateur && lieu.coords) {
+      try {
+        const d = distanceKm(
+          positionUtilisateur.lat,
+          positionUtilisateur.lng,
+          lieu.coords[0],
+          lieu.coords[1],
+        );
+        if (Number.isFinite(d)) distTxt = `${d.toFixed(1)} km`;
+      } catch (_) {}
     }
 
     meta.innerHTML = [
@@ -1561,15 +1685,25 @@ function afficherResultats(resultats) {
 
     // Clic sur un résultat → centrer (+ fermer panneau mobile pour voir la carte)
     li.addEventListener("click", () => {
-      map.setView(lieu.coords, 16);
-      const m = markers.find((mk) => {
-        const ll = mk.getLatLng();
-        return (
-          Math.abs(ll.lat - lieu.coords[0]) < 1e-6 &&
-          Math.abs(ll.lng - lieu.coords[1]) < 1e-6
-        );
-      });
-      if (m) m.openPopup();
+      try {
+        if (mapReady() && lieu.coords) {
+          map.setView(lieu.coords, 16);
+          const m = markers.find((mk) => {
+            try {
+              const ll = mk.getLatLng();
+              return (
+                Math.abs(ll.lat - lieu.coords[0]) < 1e-6 &&
+                Math.abs(ll.lng - lieu.coords[1]) < 1e-6
+              );
+            } catch (_) {
+              return false;
+            }
+          });
+          if (m) m.openPopup();
+        }
+      } catch (err) {
+        console.warn("[Nearix] result click", err);
+      }
       if (typeof isMobileLayout === "function" && isMobileLayout() && typeof setPanelOpen === "function") {
         setPanelOpen(false);
       }
@@ -1583,40 +1717,76 @@ function afficherResultats(resultats) {
 }
 
 function afficherMarqueurs(resultats) {
-  markers.forEach((m) => map.removeLayer(m));
+  if (!mapReady()) return;
+
+  // Nettoyage sûr
+  markers.forEach((m) => {
+    try {
+      map.removeLayer(m);
+    } catch (_) {}
+  });
   markers = [];
 
-  resultats.forEach((lieu) => {
-    enrichirLieu(lieu);
-    const budgetTxt =
-      lieu.budget !== null
-        ? `${lieu.budget.toLocaleString("fr-FR")} FCFA`
-        : "Prix non communiqué";
-    const starsHtml = htmlEtoiles(lieu.note);
-    const googleUrl = urlGoogleMaps(lieu);
-    const marker = L.marker(lieu.coords)
-      .addTo(map)
-      .bindPopup(
-        `<div class="popup-lieu">` +
-          `<strong>${lieu.nom}</strong><br>` +
-          `<div class="popup-rating">${starsHtml} <span class="note-num">${lieu.note.toFixed(1)}</span> · ${lieu.nbAvis.toLocaleString("fr-FR")} avis</div>` +
-          `${lieu.type} · ${lieu.ville}<br>` +
-          `${budgetTxt}<br>` +
-          `<a class="popup-google" href="${googleUrl}" target="_blank" rel="noopener noreferrer">Voir les avis Google Maps →</a>` +
-          `</div>`,
+  const liste = (resultats || [])
+    .filter(
+      (l) =>
+        l &&
+        Array.isArray(l.coords) &&
+        l.coords.length === 2 &&
+        Number.isFinite(l.coords[0]) &&
+        Number.isFinite(l.coords[1]),
+    )
+    .slice(0, MAX_MARKERS);
+
+  liste.forEach((lieu) => {
+    try {
+      enrichirLieu(lieu);
+      const budgetTxt =
+        lieu.budget !== null && lieu.budget !== undefined
+          ? `${Number(lieu.budget).toLocaleString("fr-FR")} FCFA`
+          : "Prix non communiqué";
+      const starsHtml = htmlEtoiles(getNoteLieu(lieu));
+      const googleUrl = urlGoogleMaps(lieu);
+      const marker = L.marker(lieu.coords).bindPopup(
+        `<div class="popup-lieu">
+          <strong>${String(lieu.nom || "").replace(/</g, "&lt;")}</strong><br/>
+          <span class="popup-rating">${starsHtml} ${getNoteLieu(lieu).toFixed(1)}</span><br/>
+          ${LABELS_TYPE[lieu.type] || lieu.type} · ${String(lieu.ville || "").replace(/</g, "&lt;")}<br/>
+          ${budgetTxt}<br/>
+          <a class="popup-google" href="${googleUrl}" target="_blank" rel="noopener noreferrer">Avis Google Maps</a>
+        </div>`,
       );
-    markers.push(marker);
+      marker.addTo(map);
+      markers.push(marker);
+    } catch (err) {
+      console.warn("[Nearix] marker skip", lieu && lieu.nom, err);
+    }
   });
 
-  if (resultats.length > 0) {
-    const groupe = L.featureGroup(markers);
-    map.fitBounds(groupe.getBounds(), { padding: [40, 40], maxZoom: 15 });
+  if (markers.length > 0) {
+    try {
+      const groupe = L.featureGroup(markers);
+      const b = groupe.getBounds();
+      if (b && b.isValid && b.isValid()) {
+        map.fitBounds(b, { padding: [40, 40], maxZoom: 15 });
+      }
+    } catch (err) {
+      console.warn("[Nearix] fitBounds", err);
+    }
   }
 }
 
+
 function mettreAJourAffichage(resultats) {
-  afficherResultats(resultats);
-  afficherMarqueurs(resultats);
+  const list = Array.isArray(resultats) ? resultats : [];
+  // Limite liste + marqueurs pour fluidité mobile
+  afficherResultats(list.slice(0, MAX_RESULTS_LIST));
+  afficherMarqueurs(list.slice(0, MAX_MARKERS));
+  if (resultsCount) {
+    const n = list.length;
+    resultsCount.textContent =
+      n === 0 ? "" : n > MAX_RESULTS_LIST ? `${MAX_RESULTS_LIST}+` : String(n);
+  }
 }
 
 // ============================================================
@@ -1790,20 +1960,40 @@ function utiliserMaPosition(afficherAlerteEchec = true) {
     return;
   }
 
+  // Options "mobile-friendly" : high accuracy peut planter / timeout sur Android
+  const opts = {
+    enableHighAccuracy: false,
+    timeout: 10000,
+    maximumAge: 120000,
+  };
+
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      const { latitude, longitude } = pos.coords;
-      positionUtilisateur = { lat: latitude, lng: longitude };
-      majMarqueurUtilisateur(latitude, longitude);
-      map.setView([latitude, longitude], 13);
-      chargerLieuxAutourDe(latitude, longitude, "votre position");
-    },
-    () => {
-      if (afficherAlerteEchec) {
-        showToast("Position refusée. Autorisez la géolocalisation.", "error");
+      try {
+        const { latitude, longitude } = pos.coords;
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          if (afficherAlerteEchec) showToast("Position invalide", "error");
+          return;
+        }
+        positionUtilisateur = { lat: latitude, lng: longitude };
+        majMarqueurUtilisateur(latitude, longitude);
+        if (mapReady()) {
+          try {
+            map.setView([latitude, longitude], 13);
+          } catch (_) {}
+        }
+        chargerLieuxAutourDe(latitude, longitude, "votre position");
+      } catch (err) {
+        console.error("[Nearix] geo success handler", err);
       }
     },
-    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+    (err) => {
+      console.warn("[Nearix] geo error", err && err.code, err && err.message);
+      if (afficherAlerteEchec) {
+        showToast("Position refusée ou indisponible. Autorisez la géolocalisation.", "error");
+      }
+    },
+    opts,
   );
 }
 
@@ -1819,17 +2009,16 @@ const CLE_STOCKAGE_ITINERAIRE = "nearixpro_itineraire_v2";
 const CLE_THEME = "nearixpro_theme";
 
 function sauvegarderItineraire() {
-  try {
-    localStorage.setItem(CLE_STOCKAGE_ITINERAIRE, JSON.stringify(itineraire));
-  } catch (e) {
-    console.warn("Impossible de sauvegarder l'itinéraire", e);
-  }
+  safeLocalSet(CLE_STOCKAGE_ITINERAIRE, JSON.stringify(itineraire || []));
 }
 
 function chargerItineraireSauvegarde() {
   try {
-    const raw = localStorage.getItem(CLE_STOCKAGE_ITINERAIRE);
-    if (raw) itineraire = JSON.parse(raw);
+    const raw = safeLocalGet(CLE_STOCKAGE_ITINERAIRE, null);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      itineraire = Array.isArray(parsed) ? parsed : [];
+    }
   } catch (e) {
     itineraire = [];
   }
@@ -1875,12 +2064,16 @@ function deplacerDansItineraire(index, direction) {
 function viderItineraire() {
   itineraire = [];
   afficherItineraire();
-  if (controleItineraire) {
-    map.removeControl(controleItineraire);
+  if (controleItineraire && mapReady()) {
+    try {
+      map.removeControl(controleItineraire);
+    } catch (_) {}
     controleItineraire = null;
   }
-  resumeItineraire.textContent = "";
-  resumeItineraire.classList.remove("etat-erreur");
+  if (resumeItineraire) {
+    resumeItineraire.textContent = "";
+    resumeItineraire.classList.remove("etat-erreur");
+  }
   showToast("Itinéraire vidé", "info");
 }
 
@@ -2005,6 +2198,19 @@ function optimiserOrdre(pointDepart, lieuxAOrdonner) {
 }
 
 function calculerItineraire() {
+  if (!mapReady()) {
+    showToast("Carte non prête", "error");
+    return;
+  }
+  if (!leafletReady() || typeof L.Routing === "undefined") {
+    showToast("Module d'itinéraire indisponible (hors ligne ?)", "error");
+    if (resumeItineraire) {
+      resumeItineraire.classList.add("etat-erreur");
+      resumeItineraire.textContent =
+        "Routage indisponible. Vérifiez la connexion ou réessayez plus tard.";
+    }
+    return;
+  }
   if (itineraire.length === 0) {
     showToast("Ajoutez au moins un lieu", "error");
     return;
@@ -2015,12 +2221,16 @@ function calculerItineraire() {
   }
 
   if (controleItineraire) {
-    map.removeControl(controleItineraire);
+    try {
+      map.removeControl(controleItineraire);
+    } catch (_) {}
     controleItineraire = null;
   }
 
-  resumeItineraire.classList.remove("etat-erreur");
-  resumeItineraire.textContent = "Calcul du meilleur trajet…";
+  if (resumeItineraire) {
+    resumeItineraire.classList.remove("etat-erreur");
+    resumeItineraire.textContent = "Calcul du meilleur trajet…";
+  }
 
   let pointDepart;
   let lieuxAOptimiser;
@@ -2063,7 +2273,14 @@ function calculerItineraire() {
         `Étape ${idxLieu + 1} : ${itineraire[idxLieu].nom}`,
       );
     },
-  }).addTo(map);
+  });
+  try {
+    controleItineraire.addTo(map);
+  } catch (err) {
+    console.error("[Nearix] routing addTo", err);
+    showToast("Erreur d'affichage de l'itinéraire", "error");
+    return;
+  }
 
   controleItineraire.on("routesfound", (e) => {
     const trajet = e.routes[0];
@@ -2109,22 +2326,18 @@ function basculerTheme() {
     sun.hidden = isLight;
     moon.hidden = !isLight;
   }
-  try {
-    localStorage.setItem(CLE_THEME, isLight ? "light" : "dark");
-  } catch (_) {}
+  safeLocalSet(CLE_THEME, isLight ? "light" : "dark");
 }
 
 function appliquerThemeSauvegarde() {
-  try {
-    const saved = localStorage.getItem(CLE_THEME);
-    if (saved === "light") {
-      document.documentElement.classList.add("theme-light");
-      const sun = boutonTheme?.querySelector(".icon-sun");
-      const moon = boutonTheme?.querySelector(".icon-moon");
-      if (sun) sun.hidden = true;
-      if (moon) moon.hidden = false;
-    }
-  } catch (_) {}
+  const saved = safeLocalGet(CLE_THEME, null);
+  if (saved === "light") {
+    document.documentElement.classList.add("theme-light");
+    const sun = boutonTheme?.querySelector(".icon-sun");
+    const moon = boutonTheme?.querySelector(".icon-moon");
+    if (sun) sun.hidden = true;
+    if (moon) moon.hidden = false;
+  }
 }
 
 function majClearSearchVisibility() {
@@ -2136,18 +2349,43 @@ function majClearSearchVisibility() {
 // ============================================================
 // 11. ÉVÉNEMENTS & DÉMARRAGE
 // ============================================================
-initMap();
-appliquerThemeSauvegarde();
-chargerItineraireSauvegarde();
-afficherItineraire();
+(function bootNearix() {
+  try {
+    initMap();
+  } catch (err) {
+    console.error("[Nearix] initMap", err);
+  }
+  try {
+    appliquerThemeSauvegarde();
+  } catch (_) {}
+  try {
+    chargerItineraireSauvegarde();
+    afficherItineraire();
+  } catch (err) {
+    console.error("[Nearix] itineraire load", err);
+  }
 
-// Chargement initial : base complète des lieux connus + Overpass autour de Ouagadougou
-lieux = lieuxSecours.map((l) => enrichirLieu({ ...l }));
-appliquerFiltres(); // affiche immédiatement les lieux connus
-chargerLieuxAutourDe(12.3714, -1.5197, "Ouagadougou");
+  // Offline-first : lieux connus tout de suite
+  try {
+    lieux = lieuxSecours.map((l) => enrichirLieu({ ...l }));
+    appliquerFiltres();
+  } catch (err) {
+    console.error("[Nearix] lieux secours", err);
+    lieux = [];
+  }
 
-// Tentative silencieuse de géolocalisation
-utiliserMaPosition(false);
+  // Overpass optionnel (ne doit jamais planter l'app)
+  try {
+    chargerLieuxAutourDe(12.3714, -1.5197, "Ouagadougou");
+  } catch (err) {
+    console.error("[Nearix] charge initiale", err);
+  }
+
+  // Géoloc silencieuse (peut échouer sans crash)
+  try {
+    utiliserMaPosition(false);
+  } catch (_) {}
+})();
 
 // Recherche
 boutonRecherche.addEventListener("click", rechercherLieu);
