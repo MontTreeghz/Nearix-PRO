@@ -2669,8 +2669,8 @@ document.addEventListener("keydown", (e) => {
 })();
 
 // ============================================================
-// 12. ASSISTANT IA — compréhension langage naturel (FR)
-//     100 % local : pas de clé API, fonctionne hors-ligne
+// 12. ASSISTANT IA — conversationnel local (FR)
+//     Hors-ligne · lieux BF · culture · aide app · petit talk
 // ============================================================
 (function initAssistantIA() {
   const chatEl = document.querySelector("#aiChat");
@@ -2693,18 +2693,34 @@ document.addEventListener("keydown", (e) => {
   ];
 
   const TYPES = [
-    { keys: ["hôtel", "hotel", "hotels", "hôtels", "hébergement", "loger", "nuitée", "nuitee"], type: "hotel", label: "hôtels" },
-    { keys: ["restaurant", "restaurants", "resto", "restos", "manger", "dîner", "diner", "déjeuner", "dejeuner"], type: "restaurant", label: "restaurants" },
-    { keys: ["fast-food", "fastfood", "fast food", "burger", "chicken", "snack", "pizza"], type: "fastfood", label: "fast-foods" },
-    { keys: ["station", "stations", "essence", "carburant", "fuel", "total", "oryx"], type: "station", label: "stations-service" },
-    { keys: ["banque", "banques", "atm", "guichet", "argent"], type: "banque", label: "banques" },
+    { keys: ["hôtel", "hotel", "hotels", "hôtels", "hébergement", "loger", "nuitée", "nuitee", "chambre"], type: "hotel", label: "hôtels" },
+    { keys: ["restaurant", "restaurants", "resto", "restos", "manger", "dîner", "diner", "déjeuner", "dejeuner", "maquis"], type: "restaurant", label: "restaurants" },
+    { keys: ["fast-food", "fastfood", "fast food", "burger", "chicken", "snack", "pizza", "poulet"], type: "fastfood", label: "fast-foods" },
+    { keys: ["station", "stations", "essence", "carburant", "fuel", "total", "oryx", "gasoil", "super"], type: "station", label: "stations-service" },
+    { keys: ["banque", "banques", "atm", "guichet", "argent", "retrait"], type: "banque", label: "banques" },
     { keys: ["école", "ecole", "écoles", "ecoles", "université", "universite", "collège", "college", "lycée", "lycee"], type: "ecole", label: "écoles" },
-    { keys: ["télécom", "telecom", "orange", "moov", "telecel", "sim", "réseau", "reseau"], type: "telecom", label: "agences télécom" },
-    { keys: ["tourisme", "touristique", "cascade", "cascades", "musée", "musee", "parc", "site", "attraction", "loropéni", "loropeni", "nazinga", "fabédougou", "fabedougou"], type: "tourisme", label: "sites touristiques" },
+    { keys: ["télécom", "telecom", "orange", "moov", "telecel", "sim", "réseau", "reseau", "mobile money", "momo"], type: "telecom", label: "agences télécom" },
+    { keys: ["tourisme", "touristique", "cascade", "cascades", "musée", "musee", "parc", "site", "attraction", "loropéni", "loropeni", "nazinga", "fabédougou", "fabedougou", "visiter"], type: "tourisme", label: "sites touristiques" },
   ];
 
-  let lastResults = [];
+  /** Contexte conversation (mémoire courte) */
+  const ctx = {
+    lastIntent: null,
+    lastResults: [],
+    lastVille: null,
+    lastType: null,
+    turn: 0,
+  };
   let welcomeShown = false;
+
+  function norm(s) {
+    return String(s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
 
   function esc(s) {
     return String(s)
@@ -2730,8 +2746,136 @@ document.addEventListener("keydown", (e) => {
     );
   }
 
+  function formatBudget(b) {
+    if (b == null) return "—";
+    return Number(b).toLocaleString("fr-FR") + " F";
+  }
+
+  // ---------- Base de connaissances (hors lieux) ----------
+  const FAQ = [
+    {
+      keys: ["bonjour", "bonsoir", "salut", "hello", "hi", "hey", "coucou", "bjr", "bsr"],
+      kind: "greet",
+    },
+    {
+      keys: ["merci", "thanks", "thank", "cimer", "nickel", "super", "genial", "génial", "parfait"],
+      kind: "thanks",
+    },
+    {
+      keys: ["au revoir", "bye", "a plus", "à plus", "a bientot", "à bientôt", "ciao"],
+      kind: "bye",
+    },
+    {
+      keys: ["ca va", "ça va", "comment vas", "comment allez", "tu vas bien", "how are"],
+      kind: "howare",
+    },
+    {
+      keys: ["qui es tu", "qui êtes", "t'es qui", "tes qui", "c'est quoi nearix", "presentation", "présente"],
+      kind: "who",
+    },
+    {
+      keys: ["aide", "help", "comment utiliser", "comment marche", "que peux tu", "que peux-tu", "tes capacites", "tes capacités", "quoi faire"],
+      kind: "help",
+    },
+    {
+      keys: ["burkina", "faso", "pays", "capitale", "monnaie", "fcfa", "langue", "population"],
+      kind: "country",
+    },
+    {
+      keys: ["climat", "meteo", "météo", "saison", "harmattan", "pluie", "temperature", "température"],
+      kind: "climate",
+    },
+    {
+      keys: ["cuisine", "plat", "manger quoi", "specialite", "spécialité", "tô", "riz sauce", "bassi"],
+      kind: "food",
+    },
+    {
+      keys: ["transport", "taxi", "bus", "car", "moto", "obile", "déplacement", "deplacement"],
+      kind: "transport",
+    },
+    {
+      keys: ["securite", "sécurité", "danger", "prudent", "conseil voyage", "visa"],
+      kind: "safety",
+    },
+    {
+      keys: ["mobile money", "orange money", "moov money", "paiement", "argent mobile"],
+      kind: "money",
+    },
+    {
+      keys: ["blague", "joke", "drôle", "drole", "humour", "rire"],
+      kind: "joke",
+    },
+    {
+      keys: ["heure", "date", "aujourd'hui", "quel jour"],
+      kind: "time",
+    },
+  ];
+
+  function matchFaq(q) {
+    for (const item of FAQ) {
+      if (item.keys.some((k) => q.includes(norm(k)))) return item.kind;
+    }
+    return null;
+  }
+
+  function replyFaq(kind) {
+    const now = new Date();
+    const jours = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+    switch (kind) {
+      case "greet":
+        return `<p>Bonjour ! 👋 Je suis l'<strong>assistant Nearix</strong>.</p>
+          <p>Je peux vous aider à trouver hôtels, restos, stations, banques… ou répondre à des questions sur le <strong>Burkina Faso</strong> et l'app.</p>
+          <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">Ex. « hôtels pas chers à Ouaga » · « c'est quoi la capitale ? » · « propose un week-end »</p>`;
+      case "thanks":
+        return `<p>Avec plaisir ! Si vous avez besoin d'autre chose — un resto, une station ou un conseil — je suis là.</p>`;
+      case "bye":
+        return `<p>À bientôt ! Bonne découverte avec Nearix. 🌟</p>`;
+      case "howare":
+        return `<p>Je vais très bien, merci ! Prêt à chercher un lieu ou discuter un peu du Burkina. Et vous, je peux vous aider sur quoi ?</p>`;
+      case "who":
+        return `<p>Je suis l'<strong>assistant Nearix PRO</strong>, 100 % local (pas besoin d'internet pour discuter).</p>
+          <p>Je connais des centaines de lieux au Burkina, je calcule des itinéraires, et je peux parler culture, budget, villes, cuisine…</p>`;
+      case "help":
+        return `<p><strong>Voici ce que je sais faire :</strong></p>
+          <ul class="ai-list" style="pointer-events:none">
+            <li><span class="ai-li-name">🔍 Chercher</span> <span class="ai-li-meta">hôtels, restos, stations…</span></li>
+            <li><span class="ai-li-name">📍 Filtrer</span> <span class="ai-li-meta">ville, budget, proximité</span></li>
+            <li><span class="ai-li-name">🗺️ Itinéraire</span> <span class="ai-li-meta">week-end, trajet optimal</span></li>
+            <li><span class="ai-li-name">💬 Discuter</span> <span class="ai-li-meta">Burkina, conseils, app</span></li>
+          </ul>
+          <p style="margin-top:8px">Tapez librement, ex. <em>« meilleurs restos à Bobo sous 5000 »</em>.</p>`;
+      case "country":
+        return `<p>Le <strong>Burkina Faso</strong> (« pays des hommes intègres ») a pour capitale <strong>Ouagadougou</strong>. La monnaie est le <strong>franc CFA (XOF)</strong>.</p>
+          <p>Langues : français (officiel) + mooré, dioula, fulfuldé… Population d'environ 22 millions d'habitants.</p>
+          <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">Demandez aussi : climat, cuisine, transport, ou une ville précise.</p>`;
+      case "climate":
+        return `<p>Climat <strong>soudano-sahélien</strong> : une saison sèche (nov.–mai, avec l'harmattan) et une saison des pluies (juin–oct.).</p>
+          <p>À Ouaga, il fait souvent 30–40 °C en saison sèche. Pensez à l'eau et à la crème solaire !</p>`;
+      case "food":
+        return `<p>Spécialités à goûter : <strong>tô</strong> (pâte de mil/maïs), riz sauce, poulet bicyclette, brochettes, zoom-koom, bananes plantain…</p>
+          <p>Les <strong>maquis</strong> sont parfaits pour manger local et abordable. Voulez-vous des restos ou fast-foods près de vous ?</p>`;
+      case "transport":
+        return `<p>En ville : taxis, tricycles, motos (« taxi-moto »). Entre villes : cars de transport (STMB, TSR…).</p>
+          <p>Avec Nearix, ajoutez des lieux via <strong>➕</strong> puis calculez le <strong>meilleur trajet</strong> dans l'onglet Itinéraire.</p>`;
+      case "safety":
+        return `<p>Comme partout, restez prudents la nuit, gardez vos affaires, et renseignez-vous sur les zones avant de voyager.</p>
+          <p>Pour les formalités (visa, etc.), vérifiez les sources officielles à jour. Je peux en revanche vous guider vers hôtels et services utiles.</p>`;
+      case "money":
+        return `<p>Le <strong>Mobile Money</strong> (Orange Money, Moov Money…) est très utilisé pour payer et envoyer de l'argent.</p>
+          <p>Cherchez « télécom » ou « banque » dans Nearix pour trouver agences et distributeurs.</p>`;
+      case "joke":
+        return `<p>Pourquoi le GPS au Burkina est toujours de bonne humeur ?</p>
+          <p>Parce qu'il sait toujours où filer… vers le prochain maquis ! 😄</p>`;
+      case "time":
+        return `<p>Nous sommes <strong>${jours[now.getDay()]}</strong>, ${now.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}.</p>
+          <p>Heure locale approximative du navigateur : <strong>${now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</strong>.</p>`;
+      default:
+        return null;
+    }
+  }
+
   function parseIntent(raw) {
-    const q = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const q = norm(raw);
     const intent = {
       type: null,
       typeLabel: null,
@@ -2744,44 +2888,54 @@ document.addEventListener("keydown", (e) => {
       itineraire: false,
       help: false,
       clear: false,
+      chat: null,
       motCle: "",
+      followUp: false,
     };
 
-    // Aide
-    if (/\b(aide|help|comment|quoi faire|que faire)\b/.test(q)) intent.help = true;
+    // FAQ / conversation d'abord (si pas de signal "lieu" fort)
+    const faq = matchFaq(q);
+    const hasPlaceSignal =
+      TYPES.some((t) => t.keys.some((k) => q.includes(norm(k)))) ||
+      VILLES.some((v) => v.keys.some((k) => q.includes(k))) ||
+      /\b(trouve|cherche|montre|ou est|où est|itineraire|itinéraire|pres de moi|proche)\b/.test(q);
 
-    // Vider / reset
+    if (faq && !hasPlaceSignal) {
+      intent.chat = faq;
+      return intent;
+    }
+    if (faq === "help") intent.help = true;
+    if (faq === "greet" && !hasPlaceSignal) {
+      intent.chat = "greet";
+      return intent;
+    }
+
     if (/\b(vide|vider|reset|efface|recommence)\b/.test(q) && /\b(filtre|recherche|tout)\b/.test(q)) {
       intent.clear = true;
     }
 
-    // Proximité
-    if (/\b(pres de moi|proche|autour de moi|a cote|à côté|ma position|geoloc)\b/.test(q)) {
+    if (/\b(pres de moi|proche|autour de moi|a cote|a côté|ma position|geoloc|près de moi)\b/.test(q)) {
       intent.nearMe = true;
       intent.tri = "proximite";
     }
 
-    // Meilleurs / notes
     if (/\b(meilleur|meilleurs|top|bien note|mieux note|etoile|étoiles)\b/.test(q)) {
       intent.best = true;
       intent.tri = "note";
     }
 
-    // Itinéraire
     if (/\b(itineraire|itinéraire|trajet|parcours|road trip|week-?end|circuit)\b/.test(q)) {
       intent.itineraire = true;
     }
 
-    // Types
     for (const t of TYPES) {
-      if (t.keys.some((k) => q.includes(k.normalize("NFD").replace(/[\u0300-\u036f]/g, "")))) {
+      if (t.keys.some((k) => q.includes(norm(k)))) {
         intent.type = t.type;
         intent.typeLabel = t.label;
         break;
       }
     }
 
-    // Villes
     for (const v of VILLES) {
       if (v.keys.some((k) => q.includes(k))) {
         intent.ville = v.nom;
@@ -2789,10 +2943,20 @@ document.addEventListener("keydown", (e) => {
       }
     }
 
-    // Budget : "sous 10000", "moins de 25 000", "budget 15000", "pas cher", "luxe"
+    // Suites : "et à Bobo ?", "moins cher", "autre"
+    if (!intent.type && ctx.lastType && /\b(autre|autres|encore|aussi|pareil|même|meme)\b/.test(q)) {
+      intent.type = ctx.lastType;
+      intent.typeLabel = (TYPES.find((t) => t.type === ctx.lastType) || {}).label;
+      intent.followUp = true;
+    }
+    if (!intent.ville && ctx.lastVille && /\b(autre|autres|encore|là-bas|la-bas)\b/.test(q)) {
+      intent.ville = ctx.lastVille;
+      intent.followUp = true;
+    }
+
     const mBudget =
-      q.match(/(?:sous|moins de|max(?:imum)?|budget(?: max)?|jusqu[' ]a|jusqua|inférieur a|inferieur a)\s*(\d[\d\s.]*)/i) ||
-      q.match(/(\d[\d\s.]*)\s*(?:fcfa|f cfa|francs?)/i);
+      q.match(/(?:sous|moins de|max(?:imum)?|budget(?: max)?|jusqu[' ]a|jusqua|inferieur a|inférieur a)\s*(\d[\d\s.]*)/) ||
+      q.match(/(\d[\d\s.]*)\s*(?:fcfa|f cfa|francs?)/);
     if (mBudget) {
       const n = parseInt(String(mBudget[1]).replace(/[\s.]/g, ""), 10);
       if (!isNaN(n) && n > 0) intent.budgetMax = n;
@@ -2811,43 +2975,46 @@ document.addEventListener("keydown", (e) => {
       intent.tri = intent.tri || "budgetDecroissant";
     }
 
-    // Mot-clé résiduel (noms propres type "Belle Chicken")
     const stop = new Set([
-      "un", "une", "des", "le", "la", "les", "de", "du", "des", "au", "aux", "a", "à",
+      "un", "une", "des", "le", "la", "les", "de", "du", "au", "aux", "a", "à",
       "pour", "avec", "dans", "sur", "moi", "mon", "ma", "mes", "je", "trouve", "cherche",
       "montre", "donne", "propose", "veux", "voudrais", "besoin", "ou", "où", "est", "sont",
       "fcfa", "franc", "francs", "budget", "max", "min", "sous", "moins", "pas", "cher",
       "meilleur", "meilleurs", "top", "pres", "proche", "autour", "itineraire", "trajet",
       "hotel", "hotels", "restaurant", "resto", "restos", "fast", "food", "station",
-      "banque", "ecole", "telecom", "tourisme", "site", "sites",
+      "banque", "ecole", "telecom", "tourisme", "site", "sites", "s il", "sil", "plait", "plaît",
+      "peux", "tu", "me", "svp", "stp",
     ]);
     const tokens = q
       .replace(/[^\p{L}\p{N}\s-]/gu, " ")
       .split(/\s+/)
       .filter((t) => t.length > 2 && !stop.has(t));
-    // garder tokens qui ne sont pas déjà captés comme type/ville
     intent.motCle = tokens.slice(0, 3).join(" ");
 
     return intent;
   }
 
   function filtrerLieux(intent) {
-    let list = [...lieux];
+    let list = Array.isArray(lieux) ? [...lieux] : [];
 
     if (intent.type) {
       list = list.filter((l) => l.type === intent.type);
     }
     if (intent.ville) {
       const v = intent.ville.toLowerCase();
-      list = list.filter((l) => (l.ville || "").toLowerCase().includes(v.split("-")[0].slice(0, 6)) || (l.ville || "").toLowerCase().includes(v));
-      // fallback softer
-      if (list.length === 0) {
-        list = lieux.filter((l) => {
+      let filtered = list.filter((l) => {
+        const lv = (l.ville || "").toLowerCase();
+        return lv.includes(v.split("-")[0].slice(0, 6)) || lv.includes(v);
+      });
+      if (filtered.length === 0) {
+        filtered = list.filter((l) => {
           const lv = (l.ville || "").toLowerCase();
-          return intent.ville.split(/[\s-]/).some((part) => part.length > 3 && lv.includes(part.toLowerCase().slice(0, 5)));
+          return intent.ville.split(/[\s-]/).some(
+            (part) => part.length > 3 && lv.includes(part.toLowerCase().slice(0, 5)),
+          );
         });
-        if (intent.type) list = list.filter((l) => l.type === intent.type);
       }
+      list = filtered;
     }
     if (intent.budgetMax != null) {
       list = list.filter((l) => l.budget == null || l.budget <= intent.budgetMax);
@@ -2859,14 +3026,15 @@ document.addEventListener("keydown", (e) => {
       const m = intent.motCle.toLowerCase();
       const byName = list.filter(
         (l) =>
-          l.nom.toLowerCase().includes(m) ||
+          (l.nom || "").toLowerCase().includes(m) ||
           (l.ville || "").toLowerCase().includes(m),
       );
       if (byName.length) list = byName;
     }
 
-    // Tri
-    const tri = intent.tri || (intent.nearMe ? "proximite" : intent.best ? "note" : "note");
+    const tri =
+      intent.tri ||
+      (intent.nearMe ? "proximite" : intent.best ? "note" : "note");
     if (tri === "proximite" && positionUtilisateur) {
       list.sort(
         (a, b) =>
@@ -2878,37 +3046,43 @@ document.addEventListener("keydown", (e) => {
     } else if (tri === "budgetDecroissant") {
       list.sort((a, b) => (b.budget ?? -Infinity) - (a.budget ?? -Infinity));
     } else {
-      list.sort((a, b) => getNoteLieu(b) - getNoteLieu(a) || getNbAvisLieu(b) - getNbAvisLieu(a));
+      list.sort(
+        (a, b) =>
+          getNoteLieu(b) - getNoteLieu(a) || getNbAvisLieu(b) - getNbAvisLieu(a),
+      );
     }
-
     return list;
   }
 
   function applyToUI(intent, results) {
-    // Synchronise filtres app
-    filtresActifs.motCle = intent.ville ? intent.ville.toLowerCase() : intent.motCle || "";
-    filtresActifs.type = intent.type;
-    filtresActifs.budgetMin = intent.budgetMin || 0;
-    filtresActifs.budgetMax = intent.budgetMax != null ? intent.budgetMax : Infinity;
-    filtresActifs.tri = intent.tri || "note";
+    try {
+      filtresActifs.motCle = intent.ville
+        ? intent.ville.toLowerCase()
+        : intent.motCle || "";
+      filtresActifs.type = intent.type;
+      filtresActifs.budgetMin = intent.budgetMin || 0;
+      filtresActifs.budgetMax =
+        intent.budgetMax != null ? intent.budgetMax : Infinity;
+      filtresActifs.tri = intent.tri || "note";
 
-    if (inputSearch) inputSearch.value = filtresActifs.motCle;
-    if (inputBudgetMin) inputBudgetMin.value = intent.budgetMin || "";
-    if (inputBudgetMax) inputBudgetMax.value = intent.budgetMax != null ? intent.budgetMax : "";
-    if (selectTri) selectTri.value = filtresActifs.tri;
+      if (inputSearch) inputSearch.value = filtresActifs.motCle;
+      if (inputBudgetMin) inputBudgetMin.value = intent.budgetMin || "";
+      if (inputBudgetMax)
+        inputBudgetMax.value =
+          intent.budgetMax != null ? intent.budgetMax : "";
+      if (selectTri) selectTri.value = filtresActifs.tri;
 
-    boutonsFiltreType.forEach((btn) => {
-      btn.classList.toggle("actif", btn.dataset.type === intent.type);
-    });
+      boutonsFiltreType.forEach((btn) => {
+        btn.classList.toggle("actif", btn.dataset.type === intent.type);
+      });
 
-    // Affiche résultats filtrés (sous-ensemble intelligent)
-    mettreAJourAffichage(results.slice(0, 40));
-    if (typeof majClearSearchVisibility === "function") majClearSearchVisibility();
-  }
-
-  function formatBudget(b) {
-    if (b == null) return "—";
-    return b.toLocaleString("fr-FR") + " F";
+      if (typeof mettreAJourAffichage === "function") {
+        mettreAJourAffichage(results.slice(0, 40), true);
+      }
+      if (typeof majClearSearchVisibility === "function") majClearSearchVisibility();
+    } catch (err) {
+      console.warn("[Nearix AI] applyToUI", err);
+    }
   }
 
   function buildResultsHtml(results, intent) {
@@ -2927,7 +3101,12 @@ document.addEventListener("keydown", (e) => {
         const budget = formatBudget(l.budget);
         let dist = "";
         if (positionUtilisateur) {
-          const d = distanceKm(positionUtilisateur.lat, positionUtilisateur.lng, l.coords[0], l.coords[1]);
+          const d = distanceKm(
+            positionUtilisateur.lat,
+            positionUtilisateur.lng,
+            l.coords[0],
+            l.coords[1],
+          );
           dist = ` · ${d < 10 ? d.toFixed(1) : Math.round(d)} km`;
         }
         return `<li data-ai-idx="${i}" title="Voir sur la carte">
@@ -2944,44 +3123,41 @@ document.addEventListener("keydown", (e) => {
         ? ` (budget ≤ <strong>${intent.budgetMax.toLocaleString("fr-FR")} FCFA</strong>)`
         : "";
     const total = results.length;
-
-    let intro = `J'ai trouvé <strong>${total}</strong> ${typeTxt}${villeTxt}${budgetTxt}. Voici le top ${Math.min(5, total)} :`;
+    const intro = `J'ai trouvé <strong>${total}</strong> ${typeTxt}${villeTxt}${budgetTxt}. Voici le top ${Math.min(5, total)} :`;
 
     const actions = [
       `<button type="button" class="ai-act primary" data-ai-action="show-all">Voir sur la carte</button>`,
       `<button type="button" class="ai-act" data-ai-action="add-top">➕ Ajouter le top 3 à l'itinéraire</button>`,
     ];
     if (intent.itineraire || total >= 2) {
-      actions.push(`<button type="button" class="ai-act" data-ai-action="route">Calculer un trajet</button>`);
+      actions.push(
+        `<button type="button" class="ai-act" data-ai-action="route">Calculer un trajet</button>`,
+      );
     }
 
     return `<p>${intro}</p><ul class="ai-list">${items}</ul><div class="ai-actions">${actions.join("")}</div>`;
   }
 
   function proposeWeekend() {
-    const picks = [];
     const pool = (type, villePart) =>
-      lieux.filter(
+      (lieux || []).filter(
         (l) =>
           l.type === type &&
           (!villePart || (l.ville || "").toLowerCase().includes(villePart)),
       );
-
-    const cascade = pool("tourisme", "banfora").concat(
-      lieux.filter((l) => /cascade|karfiguéla|fabédougou|loropéni/i.test(l.nom)),
-    );
-    const hotelBanfora = pool("hotel", "banfora");
-    const restoOuaga = pool("restaurant", "ouaga");
-    const hotelOuaga = pool("hotel", "ouaga");
-
     const take = (arr, n) =>
       [...arr].sort((a, b) => getNoteLieu(b) - getNoteLieu(a)).slice(0, n);
 
-    picks.push(...take(cascade.length ? cascade : pool("tourisme"), 2));
-    picks.push(...take(hotelBanfora.length ? hotelBanfora : hotelOuaga, 1));
-    picks.push(...take(restoOuaga, 1));
-
-    // unique by nom
+    const cascade = pool("tourisme", "banfora").concat(
+      (lieux || []).filter((l) =>
+        /cascade|karfiguéla|fabédougou|loropéni/i.test(l.nom || ""),
+      ),
+    );
+    const picks = [
+      ...take(cascade.length ? cascade : pool("tourisme"), 2),
+      ...take(pool("hotel", "banfora").length ? pool("hotel", "banfora") : pool("hotel", "ouaga"), 1),
+      ...take(pool("restaurant", "ouaga"), 1),
+    ];
     const seen = new Set();
     const unique = [];
     for (const p of picks) {
@@ -2995,21 +3171,16 @@ document.addEventListener("keydown", (e) => {
 
   function respond(raw) {
     const intent = parseIntent(raw);
+    ctx.turn += 1;
+
+    // Conversation / FAQ
+    if (intent.chat) {
+      const html = replyFaq(intent.chat);
+      return { html, results: [], intent };
+    }
 
     if (intent.help) {
-      return {
-        html: `<p>Je comprends le français naturel. Exemples :</p>
-          <ul class="ai-list" style="pointer-events:none">
-            <li><span class="ai-li-name">« Hôtels pas chers à Ouaga »</span></li>
-            <li><span class="ai-li-name">« Restaurants près de moi »</span></li>
-            <li><span class="ai-li-name">« Fast-foods Bobo sous 4000 »</span></li>
-            <li><span class="ai-li-name">« Sites touristiques Banfora »</span></li>
-            <li><span class="ai-li-name">« Propose un itinéraire week-end »</span></li>
-          </ul>
-          <p style="margin-top:8px;color:var(--text-muted);font-size:0.8rem">Cliquez un résultat pour le centrer sur la carte. Utilisez ➕ pour l'itinéraire.</p>`,
-        results: [],
-        intent,
-      };
+      return { html: replyFaq("help"), results: [], intent };
     }
 
     if (intent.clear) {
@@ -3022,25 +3193,29 @@ document.addEventListener("keydown", (e) => {
       if (inputBudgetMin) inputBudgetMin.value = "";
       if (inputBudgetMax) inputBudgetMax.value = "";
       boutonsFiltreType.forEach((b) => b.classList.remove("actif"));
-      appliquerFiltres();
+      if (typeof appliquerFiltres === "function") appliquerFiltres();
       return {
-        html: `<p>Filtres réinitialisés. Tous les lieux sont à nouveau visibles.</p>`,
-        results: lieux,
+        html: `<p>Filtres réinitialisés. Tous les lieux sont à nouveau visibles sur la carte.</p>`,
+        results: lieux || [],
         intent,
       };
     }
 
     if (intent.itineraire && !intent.type && !intent.ville) {
       const week = proposeWeekend();
-      lastResults = week;
-      applyToUI({ type: null, ville: null, budgetMax: null, budgetMin: null, tri: "note", motCle: "" }, week);
-      // auto-add suggestion
+      ctx.lastResults = week;
+      applyToUI(
+        { type: null, ville: null, budgetMax: null, budgetMin: null, tri: "note", motCle: "" },
+        week,
+      );
       const html =
         `<p>Voici une idée de <strong>week-end au Burkina</strong> (tourisme + hôtel + resto) :</p>` +
-        buildResultsHtml(week, { typeLabel: "étapes", ville: null, budgetMax: null, itineraire: true }).replace(
-          /^<p>.*?<\/p>/,
-          "",
-        );
+        buildResultsHtml(week, {
+          typeLabel: "étapes",
+          ville: null,
+          budgetMax: null,
+          itineraire: true,
+        }).replace(/^<p>.*?<\/p>/, "");
       return { html, results: week, intent };
     }
 
@@ -3055,19 +3230,35 @@ document.addEventListener("keydown", (e) => {
       };
     }
 
-    const results = filtrerLieux(intent);
-    lastResults = results;
-    applyToUI(intent, results);
+    // Recherche de lieux
+    const hasSearch =
+      intent.type ||
+      intent.ville ||
+      (intent.motCle && intent.motCle.length > 2) ||
+      intent.budgetMax != null ||
+      intent.nearMe ||
+      intent.best;
 
-    // Phrase d'intro contextuelle
-    if (!intent.type && !intent.ville && !intent.motCle && !intent.budgetMax) {
+    if (!hasSearch) {
+      // Petite discussion générique
       return {
-        html: `<p>Je n'ai pas bien saisi. Précisez un <strong>type</strong> (hôtel, resto…), une <strong>ville</strong> ou un <strong>budget</strong>.</p>
-          <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">Ex. « meilleurs hôtels à Bobo sous 30000 »</p>`,
-        results,
+        html: `<p>Je n'ai pas bien saisi. Vous pouvez :</p>
+          <ul class="ai-list" style="pointer-events:none">
+            <li><span class="ai-li-name">Chercher un lieu</span> <span class="ai-li-meta">« restos Bobo »</span></li>
+            <li><span class="ai-li-name">Poser une question</span> <span class="ai-li-meta">« climat », « cuisine »</span></li>
+            <li><span class="ai-li-name">Demander de l'aide</span> <span class="ai-li-meta">« aide »</span></li>
+          </ul>`,
+        results: [],
         intent,
       };
     }
+
+    const results = filtrerLieux(intent);
+    ctx.lastResults = results;
+    ctx.lastIntent = intent;
+    if (intent.ville) ctx.lastVille = intent.ville;
+    if (intent.type) ctx.lastType = intent.type;
+    applyToUI(intent, results);
 
     return {
       html: buildResultsHtml(results, intent),
@@ -3078,8 +3269,11 @@ document.addEventListener("keydown", (e) => {
 
   function handleAction(action) {
     if (action === "geo") {
-      utiliserMaPosition(true);
-      addMsg(`<p>Demande de géolocalisation envoyée… Autorisez l'accès dans le navigateur.</p>`, "bot");
+      if (typeof utiliserMaPosition === "function") utiliserMaPosition(true);
+      addMsg(
+        `<p>Demande de géolocalisation envoyée… Autorisez l'accès dans le navigateur.</p>`,
+        "bot",
+      );
       return;
     }
     if (action === "clear") {
@@ -3088,75 +3282,112 @@ document.addEventListener("keydown", (e) => {
       return;
     }
     if (action === "show-all") {
-      activerOnglet("recherche");
-      if (lastResults.length) mettreAJourAffichage(lastResults.slice(0, 40));
-      showToast("Résultats affichés sur la carte", "success");
+      if (typeof activerOnglet === "function") activerOnglet("recherche");
+      if (ctx.lastResults.length && typeof mettreAJourAffichage === "function") {
+        mettreAJourAffichage(ctx.lastResults.slice(0, 40), true);
+      }
+      if (typeof showToast === "function")
+        showToast("Résultats affichés sur la carte", "success");
       return;
     }
     if (action === "add-top") {
-      const top = lastResults.slice(0, 3);
+      const top = ctx.lastResults.slice(0, 3);
       top.forEach((l) => {
-        const deja = itineraire.some((e) => e.nom === l.nom && e.ville === l.ville);
+        const deja = itineraire.some(
+          (e) => e.nom === l.nom && e.ville === l.ville,
+        );
         if (!deja) itineraire.push(l);
       });
-      afficherItineraire();
-      activerOnglet("itineraire");
-      showToast(`${top.length} lieu(x) ajouté(s) à l'itinéraire`, "success");
-      addMsg(`<p>Les <strong>${top.length}</strong> premiers lieux ont été ajoutés à l'itinéraire. Ouvrez l'onglet <strong>Itinéraire</strong> pour calculer le trajet.</p>`, "bot");
+      if (typeof afficherItineraire === "function") afficherItineraire();
+      if (typeof activerOnglet === "function") activerOnglet("itineraire");
+      if (typeof showToast === "function")
+        showToast(`${top.length} lieu(x) ajouté(s) à l'itinéraire`, "success");
+      addMsg(
+        `<p>Les <strong>${top.length}</strong> premiers lieux ont été ajoutés. Ouvrez l'onglet <strong>Itinéraire</strong> pour calculer le trajet.</p>`,
+        "bot",
+      );
       return;
     }
     if (action === "route") {
-      if (!lastResults.length) return;
-      lastResults.slice(0, 4).forEach((l) => {
-        const deja = itineraire.some((e) => e.nom === l.nom && e.ville === l.ville);
+      if (!ctx.lastResults.length) return;
+      ctx.lastResults.slice(0, 4).forEach((l) => {
+        const deja = itineraire.some(
+          (e) => e.nom === l.nom && e.ville === l.ville,
+        );
         if (!deja) itineraire.push(l);
       });
-      afficherItineraire();
-      activerOnglet("itineraire");
-      setTimeout(() => calculerItineraire(), 300);
-      addMsg(`<p>Itinéraire en cours de calcul avec les meilleurs lieux sélectionnés…</p>`, "bot");
-      return;
+      if (typeof afficherItineraire === "function") afficherItineraire();
+      if (typeof activerOnglet === "function") activerOnglet("itineraire");
+      setTimeout(() => {
+        if (typeof calculerItineraire === "function") calculerItineraire();
+      }, 300);
+      addMsg(
+        `<p>Itinéraire en cours de calcul avec les lieux sélectionnés…</p>`,
+        "bot",
+      );
     }
   }
 
+  function bindMsgActions(msg) {
+    msg.querySelectorAll(".ai-list li[data-ai-idx]").forEach((li) => {
+      li.addEventListener("click", () => {
+        const idx = parseInt(li.dataset.aiIdx, 10);
+        const lieu = ctx.lastResults[idx];
+        if (!lieu || !mapReady()) return;
+        try {
+          map.setView(lieu.coords, 16);
+          const m = markers.find((mk) => {
+            try {
+              const ll = mk.getLatLng();
+              return (
+                Math.abs(ll.lat - lieu.coords[0]) < 1e-5 &&
+                Math.abs(ll.lng - lieu.coords[1]) < 1e-5
+              );
+            } catch (_) {
+              return false;
+            }
+          });
+          if (m) m.openPopup();
+          if (typeof showToast === "function") showToast(lieu.nom, "info");
+          if (
+            typeof isMobileLayout === "function" &&
+            isMobileLayout() &&
+            typeof setPanelOpen === "function"
+          ) {
+            setPanelOpen(false);
+          }
+        } catch (err) {
+          console.warn("[Nearix AI] focus lieu", err);
+        }
+      });
+    });
+    msg.querySelectorAll("[data-ai-action]").forEach((btn) => {
+      btn.addEventListener("click", () => handleAction(btn.dataset.aiAction));
+    });
+  }
+
   function onSubmit(text) {
-    const t = text.trim();
+    const t = String(text || "").trim();
     if (!t) return;
     addMsg(esc(t), "user");
     inputEl.value = "";
     const typing = showTyping();
-    // léger délai pour effet "réflexion"
     setTimeout(() => {
-      typing.remove();
+      try {
+        typing.remove();
+      } catch (_) {}
       try {
         const { html } = respond(t);
         const msg = addMsg(html, "bot");
-        // bind list clicks
-        msg.querySelectorAll(".ai-list li[data-ai-idx]").forEach((li) => {
-          li.addEventListener("click", () => {
-            const idx = parseInt(li.dataset.aiIdx, 10);
-            const lieu = lastResults[idx];
-            if (!lieu) return;
-            map.setView(lieu.coords, 16);
-            const m = markers.find((mk) => {
-              const ll = mk.getLatLng();
-              return Math.abs(ll.lat - lieu.coords[0]) < 1e-5 && Math.abs(ll.lng - lieu.coords[1]) < 1e-5;
-            });
-            if (m) m.openPopup();
-            showToast(lieu.nom, "info");
-            if (typeof isMobileLayout === "function" && isMobileLayout() && typeof setPanelOpen === "function") {
-              setPanelOpen(false);
-            }
-          });
-        });
-        msg.querySelectorAll("[data-ai-action]").forEach((btn) => {
-          btn.addEventListener("click", () => handleAction(btn.dataset.aiAction));
-        });
+        bindMsgActions(msg);
       } catch (err) {
-        console.error(err);
-        addMsg(`<p>Une erreur est survenue. Réessayez avec une formulation plus simple.</p>`, "bot");
+        console.error("[Nearix AI]", err);
+        addMsg(
+          `<p>Oups, petite erreur de mon côté. Reformulez simplement — ex. « hotels Ouaga » ou « aide ».</p>`,
+          "bot",
+        );
       }
-    }, 380 + Math.random() * 220);
+    }, 280 + Math.random() * 200);
   }
 
   formEl.addEventListener("submit", (e) => {
@@ -3167,25 +3398,25 @@ document.addEventListener("keydown", (e) => {
   suggestionsEl?.querySelectorAll(".ai-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       const q = chip.dataset.q || chip.textContent;
-      activerOnglet("assistant");
+      if (typeof activerOnglet === "function") activerOnglet("assistant");
       onSubmit(q);
     });
   });
 
-  // Message de bienvenue à la première ouverture de l'onglet
-  const observerTabs = () => {
+  // Bienvenue à la première ouverture de l'onglet
+  if (typeof tabs !== "undefined" && tabs) {
     tabs.forEach((tab) => {
       tab.addEventListener("click", () => {
         if (tab.dataset.tab === "assistant" && !welcomeShown) {
           welcomeShown = true;
           addMsg(
-            `<p>Bonjour ! Je suis l'<strong>assistant Nearix</strong>. Posez-moi une question en français sur les lieux au Burkina Faso.</p>
-             <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">Astuce : utilisez les suggestions ci-dessus ou tapez librement.</p>`,
+            `<p>Bonjour ! Je suis l'<strong>assistant Nearix</strong> ✨</p>
+             <p>Je cherche des lieux au Burkina, je propose des itinéraires, et je peux aussi parler <strong>culture, cuisine, climat, transport</strong>…</p>
+             <p style="margin-top:6px;font-size:0.8rem;color:var(--text-muted)">Essayez une suggestion ou écrivez librement.</p>`,
             "bot",
           );
         }
       });
     });
-  };
-  observerTabs();
+  }
 })();
